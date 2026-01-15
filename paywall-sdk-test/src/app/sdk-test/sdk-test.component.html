@@ -1,0 +1,384 @@
+<div class="checkout-container">
+  <h1>Paywall JS SDK - Production Checkout Test</h1>
+
+  <!-- SDK Lifecycle Status -->
+  <section class="status-card">
+    <h2>SDK Lifecycle Status</h2>
+    <div class="status-grid">
+      <div class="status-item">
+        <span class="label">Current Step:</span>
+        <span class="step-badge">{{ currentStep }}</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Core Init:</span>
+        <span [class.success]="coreInitSuccess" [class.error]="!coreInitSuccess">
+          {{ coreInitSuccess ? '✓ SUCCESS' : '✗ FAILED' }}
+        </span>
+      </div>
+      <div class="status-item" *ngIf="coreInitSuccess">
+        <span class="label">Session:</span>
+        <span [class.success]="sessionStarted" [class.error]="sessionStarted === false">
+          {{ sessionStarted ? '✓ STARTED' : (sessionStarted === false ? '✗ FAILED' : 'PENDING') }}
+        </span>
+      </div>
+      <div class="status-item" *ngIf="sessionStarted">
+        <span class="label">Provider Init:</span>
+        <span [class.success]="providerInitSuccess" [class.error]="providerInitSuccess === false">
+          {{ providerInitSuccess ? '✓ SUCCESS' : (providerInitSuccess === false ? '✗ FAILED' : 'PENDING') }}
+        </span>
+      </div>
+      <div class="status-item" *ngIf="providerInitSuccess">
+        <span class="label">Payment:</span>
+        <span [class.success]="paymentInitSuccess" [class.error]="paymentStatus === 'FAILED'" [class.warning]="paymentStatus === 'ACTION_REQUIRED'">
+          {{ paymentStatus }}
+        </span>
+      </div>
+      <div class="status-item" *ngIf="coreInitError">
+        <span class="error-text">✗ Core Init: {{ coreInitError }}</span>
+      </div>
+      <div class="status-item" *ngIf="sessionError">
+        <span class="error-text">✗ Session: {{ sessionError }}</span>
+      </div>
+      <div class="status-item" *ngIf="providerInitError">
+        <span class="error-text">✗ Provider Init: {{ providerInitError }}</span>
+      </div>
+      <div class="status-item" *ngIf="addCardError">
+        <span class="error-text">✗ Add Card: {{ addCardError }}</span>
+      </div>
+      <div class="status-item" *ngIf="paymentError">
+        <span class="error-text">✗ Payment: {{ paymentError }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 1: Core SDK Init -->
+  <section class="form-card">
+    <h2>Step 1: Core SDK Init</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Environment:</label>
+        <select [(ngModel)]="environment" class="form-control" [disabled]="coreInitSuccess">
+          <option value="dev">Dev</option>
+          <option value="test">Test</option>
+          <option value="prod">Prod</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Access Token (from merchant backend):</label>
+        <input 
+          type="text" 
+          [(ngModel)]="accessToken" 
+          (input)="onTokenChange()"
+          placeholder="Enter access token"
+          class="form-control"
+          [disabled]="coreInitSuccess"
+          [class.error]="coreInitError === 'Token is required'"
+        />
+        <small class="note" *ngIf="!coreInitError || coreInitError !== 'Token is required'">Token is required</small>
+        <small class="error-text" *ngIf="coreInitError === 'Token is required'">Token is required</small>
+      </div>
+    </div>
+    <button 
+      (click)="initCoreSdk()" 
+      [disabled]="!accessToken.trim() || coreInitSuccess"
+      class="btn btn-primary"
+    >
+      Init Core SDK
+    </button>
+    <div class="info-box" *ngIf="coreInitSuccess">
+      <p>✓ Core SDK initialized. No network request was made.</p>
+    </div>
+    <div *ngIf="coreInitResponse" class="response-display" style="margin-top: 15px;">
+      <h3>Core Init Response:</h3>
+      <pre>{{ coreInitResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- Step 2: Session Start -->
+  <section class="form-card" *ngIf="coreInitSuccess">
+    <h2>Step 2: Session Start</h2>
+    <p class="note">Merchant explicitly calls session start. NOT automatic.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Reference Code:</label>
+        <input type="text" [(ngModel)]="sessionForm.referenceCode" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>User ID:</label>
+        <input type="text" [(ngModel)]="sessionForm.userId" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>User Phone:</label>
+        <input type="text" [(ngModel)]="sessionForm.userPhone" class="form-control" />
+      </div>
+      <div class="form-group checkbox-group">
+        <label>
+          <input type="checkbox" [(ngModel)]="sessionForm.force3D" />
+          Force 3D
+        </label>
+      </div>
+    </div>
+    <button 
+      (click)="startSession()" 
+      [disabled]="!coreInitSuccess || sessionStarted"
+      class="btn btn-primary"
+    >
+      Start Session
+    </button>
+    <div class="info-box" *ngIf="sessionStarted">
+      <p>✓ Session started successfully. SDK stores MasterpassToken and MerchantId internally.</p>
+    </div>
+    <div *ngIf="sessionResponse" class="response-display" style="margin-top: 15px;">
+      <h3>Session Response:</h3>
+      <div class="response-item">
+        <span class="label">SessionId:</span>
+        <span class="value">{{ sessionResponse.sessionId }}</span>
+      </div>
+      <div class="response-item" *ngIf="sessionResponse.masterpassToken">
+        <span class="label">MasterpassToken:</span>
+        <span class="value masked">{{ maskToken(sessionResponse.masterpassToken) }}</span>
+      </div>
+      <pre style="margin-top: 10px;">{{ sessionResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- Step 3: Provider Init (Masterpass) - AFTER Session -->
+  <section class="form-card" *ngIf="coreInitSuccess && sessionStarted">
+    <h2>Step 3: Masterpass Provider Init</h2>
+    <p class="note">Provider init is called AFTER session. SDK gets token and merchantId from session state automatically.</p>
+    <button 
+      (click)="initMasterpassProvider()" 
+      [disabled]="!sessionStarted || providerInitSuccess"
+      class="btn btn-primary"
+    >
+      Init Masterpass Provider
+    </button>
+    <div class="info-box" *ngIf="providerInitSuccess">
+      <p>✓ Masterpass provider initialized.</p>
+    </div>
+    <div *ngIf="providerInitResponse" class="response-display" style="margin-top: 15px;">
+      <h3>Provider Init Response:</h3>
+      <pre>{{ providerInitResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- Add Card Response (if available) -->
+  <section class="form-card" *ngIf="addCardResponse || addCardError">
+    <h2>Add Card Response</h2>
+    <div class="response-display" *ngIf="addCardResponse">
+      <div class="response-item" *ngIf="cardAlias">
+        <span class="label">CardAlias (from SDK):</span>
+        <span class="value success">{{ cardAlias }}</span>
+      </div>
+      <div class="response-item" *ngIf="addCardResponse.success !== undefined">
+        <span class="label">Success:</span>
+        <span class="value" [class.success]="addCardResponse.success === true" [class.error]="addCardResponse.success === false">
+          {{ addCardResponse.success ? '✓ YES' : '✗ NO' }}
+        </span>
+      </div>
+      <div class="response-item" *ngIf="addCardResponse.status">
+        <span class="label">Status:</span>
+        <span class="value" [class.success]="addCardResponse.status === 'SUCCESS'" [class.error]="addCardResponse.status !== 'SUCCESS'">
+          {{ addCardResponse.status }}
+        </span>
+      </div>
+      <h3 style="margin-top: 15px;">Full SDK Response:</h3>
+      <pre>{{ addCardResponse | json }}</pre>
+    </div>
+    <div class="error-text" *ngIf="addCardError" style="margin-top: 10px;">
+      ✗ {{ addCardError }}
+    </div>
+  </section>
+
+  <!-- Step 4: Payment Init -->
+  <section class="form-card" *ngIf="sessionStarted && providerInitSuccess">
+    <h2>Step 4: Payment Init</h2>
+    <p class="note" *ngIf="shouldSaveCard && cardType === 'manual'">
+      ⚠ "Kartı Masterpass'e Kaydet" seçili. Payment init'ten önce Add Card otomatik çağrılacak.
+    </p>
+    
+    <!-- Payment Details -->
+    <h3>Payment Details</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Amount:</label>
+        <input type="number" [(ngModel)]="paymentForm.amount" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Currency ID:</label>
+        <input type="number" [(ngModel)]="paymentForm.currencyId" class="form-control" />
+        <small>1 = TRY</small>
+      </div>
+      <div class="form-group">
+        <label>Merchant Unique Code:</label>
+        <input type="text" [(ngModel)]="paymentForm.merchantUniqueCode" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Success URL:</label>
+        <input type="text" [(ngModel)]="paymentForm.successUrl" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Fail URL:</label>
+        <input type="text" [(ngModel)]="paymentForm.failUrl" class="form-control" />
+      </div>
+    </div>
+
+    <!-- Card Information -->
+    <h3>Card Information</h3>
+    <div class="form-group">
+      <label>Card Type:</label>
+      <select [(ngModel)]="cardType" (ngModelChange)="onCardTypeChange()" class="form-control">
+        <option value="manual">Manual Card</option>
+        <option value="saved">Saved Card</option>
+      </select>
+    </div>
+    <div class="form-group checkbox-group" *ngIf="cardType === 'manual'">
+      <label>
+        <input type="checkbox" [(ngModel)]="shouldSaveCard" (ngModelChange)="onShouldSaveCardChange()" />
+        Kartı Masterpass'e Kaydet
+      </label>
+      <small class="note">Kart bilgileri Masterpass'e kaydedilecek ve sonraki ödemelerde kullanılabilecek</small>
+    </div>
+    <div class="form-group" *ngIf="cardType === 'manual' && shouldSaveCard">
+      <label>Card Alias Name (Opsiyonel):</label>
+      <input type="text" [(ngModel)]="cardAliasInput" class="form-control" placeholder="Kart için özel isim (boş bırakılabilir)" />
+      <small class="note">Kart için özel bir isim verebilirsiniz. Boş bırakılırsa Masterpass otomatik isim oluşturur.</small>
+    </div>
+    <div class="info-box" *ngIf="cardAlias && cardType === 'manual'">
+      <p>✓ Kart Masterpass'e kaydedildi</p>
+      <p><strong>CardAlias:</strong> {{ cardAlias }}</p>
+      <p class="note">Ödeme REGISTERED_CARD olarak yapılacak</p>
+    </div>
+    <div class="form-grid">
+      <div class="form-group" *ngIf="cardType === 'saved'">
+        <label>Card Alias (Holder Name olarak gönderilir):</label>
+        <input type="text" [(ngModel)]="cardForm.cardAlias" class="form-control" placeholder="Kayıtlı kart alias" />
+        <small class="note">Alias değeri aynı zamanda Holder Name olarak da gönderilir</small>
+      </div>
+      <div class="form-group" *ngIf="cardType === 'saved'">
+        <label>Card BIN (İlk 6 hane):</label>
+        <input type="text" [(ngModel)]="cardForm.cardBin" class="form-control" placeholder="552879" maxlength="6" />
+        <small class="note">Kayıtlı kartın ilk 6 hanesi (zorunlu)</small>
+      </div>
+      <div class="form-group" *ngIf="cardType === 'saved'">
+        <label>Card Masked:</label>
+        <input type="text" [(ngModel)]="cardForm.cardMasked" class="form-control" placeholder="5528 79** **** 1234" />
+        <small class="note">Maskelenmiş kart numarası (zorunlu)</small>
+      </div>
+      <div class="form-group" *ngIf="cardType === 'manual'">
+        <label>Card Number:</label>
+        <input 
+          type="text" 
+          [(ngModel)]="cardForm.cardNumber" 
+          placeholder="5528 7900 0000 0008"
+          class="form-control"
+        />
+        <small class="pci-note">⚠ Sent ONLY to payment processor (encrypted), NOT to Paywall</small>
+      </div>
+      <div class="form-group" *ngIf="cardType === 'manual'">
+        <label>Owner Name:</label>
+        <input type="text" [(ngModel)]="cardForm.cardHolderName" class="form-control" />
+      </div>
+      <div class="form-group" *ngIf="cardType === 'manual'">
+        <label>Expiry Month (MM):</label>
+        <input type="text" [(ngModel)]="cardForm.expiryMonth" placeholder="12" class="form-control" maxlength="2" />
+      </div>
+      <div class="form-group" *ngIf="cardType === 'manual'">
+        <label>Expiry Year (YY):</label>
+        <input type="text" [(ngModel)]="cardForm.expiryYear" placeholder="26" class="form-control" maxlength="2" />
+      </div>
+      <div class="form-group" *ngIf="cardType === 'manual'">
+        <label>CVV:</label>
+        <input type="text" [(ngModel)]="cardForm.cvv" placeholder="123" class="form-control" maxlength="4" />
+        <small class="pci-note">⚠ Sent ONLY to payment processor (encrypted), NOT to Paywall</small>
+      </div>
+    </div>
+
+    <!-- Customer Information -->
+    <h3>Customer Information</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Full Name:</label>
+        <input type="text" [(ngModel)]="customerForm.fullName" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Phone:</label>
+        <input type="text" [(ngModel)]="customerForm.phone" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Email:</label>
+        <input type="email" [(ngModel)]="customerForm.email" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Identity Number:</label>
+        <input type="text" [(ngModel)]="customerForm.identityNumber" class="form-control" />
+      </div>
+    </div>
+
+    <!-- Products -->
+    <h3>Products</h3>
+    <div *ngFor="let product of products; let i = index" class="product-item">
+      <h4>Product {{ i + 1 }}</h4>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Product ID:</label>
+          <input type="text" [(ngModel)]="product.productId" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Product Name:</label>
+          <input type="text" [(ngModel)]="product.productName" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Product Amount:</label>
+          <input type="number" [(ngModel)]="product.productAmount" class="form-control" />
+        </div>
+        <div class="form-group">
+          <button (click)="removeProduct(i)" class="btn btn-danger" *ngIf="products.length > 1">Remove</button>
+        </div>
+      </div>
+    </div>
+    <button (click)="addProduct()" class="btn btn-secondary">Add Product</button>
+
+    <!-- Payment Init Button -->
+    <button 
+      (click)="initPayment()" 
+      [disabled]="!sessionStarted || !providerInitSuccess || paymentStatus === 'PROCESSING'"
+      class="btn btn-primary"
+      style="margin-top: 20px;"
+    >
+      Init Payment
+    </button>
+
+    <!-- Payment Status -->
+    <div *ngIf="paymentStatus !== 'IDLE'" class="payment-status" 
+         [class.success]="paymentStatus === 'SUCCESS'" 
+         [class.warning]="paymentStatus === 'ACTION_REQUIRED'" 
+         [class.error]="paymentStatus === 'FAILED'" 
+         [class.processing]="paymentStatus === 'PROCESSING'">
+      <h3>Payment Status: {{ paymentStatus }}</h3>
+      <p *ngIf="paymentMessage">{{ paymentMessage }}</p>
+      <button 
+        *ngIf="paymentStatus === 'ACTION_REQUIRED' && paymentInitResponse?.redirectUrl" 
+        (click)="redirectTo3D()" 
+        class="btn btn-secondary"
+        style="margin-top: 10px;"
+      >
+        Redirect to 3D Page
+      </button>
+    </div>
+
+    <!-- Payment Init Response -->
+    <div *ngIf="paymentInitResponse" class="response-display" style="margin-top: 20px;">
+      <h3>Payment Init Response (Full JSON):</h3>
+      <pre>{{ paymentInitResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- Debug Logs -->
+  <section class="form-card">
+    <h2>Debug Logs</h2>
+    <div class="logs-container">
+      <pre>{{ logs.join('\n') }}</pre>
+    </div>
+  </section>
+</div>

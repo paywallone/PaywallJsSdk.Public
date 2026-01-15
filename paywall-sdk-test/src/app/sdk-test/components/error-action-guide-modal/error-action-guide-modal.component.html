@@ -1,0 +1,57 @@
+<!-- Error Action Guide Button -->
+<button class="btn btn-warning error-action-guide-btn" (click)="openModal()">
+  🧭 Hata Aldığımda Ne Yapmalıyım?
+</button>
+
+<!-- Error Action Guide Modal -->
+<div class="modal-backdrop" *ngIf="showModal" (click)="onBackdropClick($event)">
+  <div class="modal-container error-action-guide-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Hata Kodlarına Göre Yapılması Gerekenler</h2>
+      <button class="modal-close" (click)="closeModal()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <p class="intro-text">
+        Bu rehber, Masterpass entegrasyonunda karşılaşılan hata kodları için yapılması gereken aksiyonları açıklar.
+        Her hata kodu için anlamı, yapılması gerekenler ve ilgili akışlar listelenmiştir.
+      </p>
+
+      <!-- Error Actions Accordion -->
+      <div class="error-actions-list">
+        <div class="error-action-item" *ngFor="let error of errorActions">
+          <div class="error-action-header" (click)="toggleError(error.code)">
+            <div class="error-action-title">
+              <span class="error-code-badge">{{ error.code }}</span>
+              <span class="error-meaning">{{ error.meaning }}</span>
+            </div>
+            <span class="accordion-icon">{{ isExpanded(error.code) ? '▼' : '►' }}</span>
+          </div>
+          
+          <div class="error-action-content" *ngIf="isExpanded(error.code)">
+            <div class="action-section">
+              <h4>Ne Yapılmalı?</h4>
+              <ul class="action-list">
+                <li *ngFor="let action of error.actions">{{ action }}</li>
+              </ul>
+            </div>
+
+            <div class="related-flow" *ngIf="error.relatedFlow">
+              <h4>İlgili Akış / Kod Referansı:</h4>
+              <code class="code-reference">{{ error.relatedFlow }}</code>
+            </div>
+
+            <div class="note-section" *ngIf="error.note">
+              <h4>Akış Notu:</h4>
+              <p class="note-text">{{ error.note }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeModal()">Kapat</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,92 @@
+<!-- Error Codes Info Button -->
+<button class="btn btn-info error-codes-btn" (click)="openModal()">
+  ℹ️ Masterpass Hata Kodları
+</button>
+
+<!-- Error Codes Modal -->
+<div class="modal-backdrop" *ngIf="showModal" (click)="onBackdropClick($event)">
+  <div class="modal-container error-codes-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Masterpass & VPOS Hata Kodları Rehberi</h2>
+      <button class="modal-close" (click)="closeModal()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Business Error Codes Accordion -->
+      <div class="accordion-section">
+        <div class="accordion-header" (click)="toggleBusiness()">
+          <span class="accordion-title">🧠 Business Error Codes</span>
+          <span class="accordion-icon">{{ businessExpanded ? '▼' : '►' }}</span>
+        </div>
+        <div class="accordion-content" *ngIf="businessExpanded">
+          <table class="error-codes-table">
+            <thead>
+              <tr>
+                <th>Hata Kodu</th>
+                <th>Açıklama</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let error of businessErrorCodes">
+                <td class="error-code">{{ error.code }}</td>
+                <td class="error-description">{{ error.description }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Validation Error Codes Accordion -->
+      <div class="accordion-section">
+        <div class="accordion-header" (click)="toggleValidation()">
+          <span class="accordion-title">✅ Validation Error Codes</span>
+          <span class="accordion-icon">{{ validationExpanded ? '▼' : '►' }}</span>
+        </div>
+        <div class="accordion-content" *ngIf="validationExpanded">
+          <table class="error-codes-table">
+            <thead>
+              <tr>
+                <th>Hata Kodu</th>
+                <th>Açıklama</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let error of validationErrorCodes">
+                <td class="error-code">{{ error.code }}</td>
+                <td class="error-description">{{ error.description }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VPOS / Acquirer Error Codes Accordion -->
+      <div class="accordion-section">
+        <div class="accordion-header" (click)="toggleVpos()">
+          <span class="accordion-title">🏦 VPOS / Acquirer Error Codes</span>
+          <span class="accordion-icon">{{ vposExpanded ? '▼' : '►' }}</span>
+        </div>
+        <div class="accordion-content" *ngIf="vposExpanded">
+          <table class="error-codes-table">
+            <thead>
+              <tr>
+                <th>Hata Kodu</th>
+                <th>Açıklama</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let error of vposErrorCodes">
+                <td class="error-code">{{ error.code }}</td>
+                <td class="error-description">{{ error.description }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeModal()">Kapat</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,527 @@
+<div class="test-page-container">
+  <h1>Paywall JS SDK - Masterpass Test Harness</h1>
+  
+  <!-- Error Codes Modal -->
+  <app-error-codes-modal></app-error-codes-modal>
+  
+  <!-- Error Action Guide Modal -->
+  <app-error-action-guide-modal></app-error-action-guide-modal>
+  
+  <!-- Dialogs -->
+  <app-otp-dialog></app-otp-dialog>
+  <app-confirm-dialog></app-confirm-dialog>
+  <app-select-card-dialog></app-select-card-dialog>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-backdrop" *ngIf="showDeleteConfirm" (click)="cancelDeleteCard()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <h3>Confirm Delete Card</h3>
+      <p>Are you sure you want to delete card: <strong>{{ cardToDelete?.alias }}</strong>?</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" (click)="cancelDeleteCard()">Cancel</button>
+        <button class="btn btn-danger" (click)="deleteCard()" [disabled]="cardDeleteLoading">
+          {{ cardDeleteLoading ? 'Deleting...' : 'Delete' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Section -->
+  <div class="config-section">
+    <h3>Configuration</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Environment:</label>
+        <select [(ngModel)]="environment" class="form-control" [disabled]="sdkInitSuccess">
+          <option value="dev">Dev</option>
+          <option value="test">Test</option>
+          <option value="prod">Prod</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Access Token:</label>
+        <input type="text" [(ngModel)]="accessToken" placeholder="Enter token" class="form-control" [disabled]="sdkInitSuccess" />
+      </div>
+      <div class="form-group">
+        <label>User ID: <span style="color: red;">*</span></label>
+        <input type="text" [(ngModel)]="userId" placeholder="User identifier (Required)" class="form-control" required />
+        <small style="color: #666; font-size: 11px;">Required for all Masterpass operations</small>
+      </div>
+      <div class="form-group">
+        <label>User Phone (accountKey):</label>
+        <input type="text" [(ngModel)]="userPhone" placeholder="905551234567" class="form-control" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== A) SDK / SESSION CONTROL PANEL ========== -->
+  <section class="panel block-a">
+    <h2>A) SDK / Session Control Panel</h2>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-primary" 
+        (click)="initPaywallSdk()" 
+        [disabled]="!accessToken.trim() || sdkInitLoading || sdkInitSuccess"
+      >
+        <span *ngIf="sdkInitLoading">⏳ Loading...</span>
+        <span *ngIf="!sdkInitLoading">Init Paywall SDK</span>
+      </button>
+      <span class="badge" 
+            [class.success]="sdkInitSuccess" 
+            [class.error]="sdkInitError"
+            [class.pending]="!sdkInitSuccess && !sdkInitError">
+        {{ sdkInitSuccess ? '✔ Success' : (sdkInitError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="sdkInitResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('sdkInitResponseExpanded')">
+        {{ sdkInitResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="sdkInitResponseExpanded">{{ sdkInitResponse | json }}</pre>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-primary" 
+        (click)="startSession()" 
+        [disabled]="!sdkInitSuccess || sessionLoading || sessionSuccess"
+      >
+        <span *ngIf="sessionLoading">⏳ Loading...</span>
+        <span *ngIf="!sessionLoading">Start Session</span>
+      </button>
+      <span class="badge" 
+            [class.success]="sessionSuccess" 
+            [class.error]="sessionError"
+            [class.pending]="!sessionSuccess && !sessionError">
+        {{ sessionSuccess ? '✔ Success' : (sessionError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="sessionResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('sessionResponseExpanded')">
+        {{ sessionResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="sessionResponseExpanded">{{ sessionResponse | json }}</pre>
+      <div *ngIf="sessionId" class="info-item">
+        <strong>SessionId:</strong> {{ sessionId }}
+      </div>
+      <div *ngIf="masterpassToken" class="info-item">
+        <strong>MasterpassToken:</strong> {{ logService.maskSensitiveData({ token: masterpassToken }).token }}
+      </div>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-primary" 
+        (click)="initMasterpassProvider()" 
+        [disabled]="!sessionSuccess || providerInitLoading || providerInitSuccess"
+      >
+        <span *ngIf="providerInitLoading">⏳ Loading...</span>
+        <span *ngIf="!providerInitLoading">Init Masterpass Provider</span>
+      </button>
+      <span class="badge" 
+            [class.success]="providerInitSuccess" 
+            [class.error]="providerInitError"
+            [class.pending]="!providerInitSuccess && !providerInitError">
+        {{ providerInitSuccess ? '✔ Success' : (providerInitError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="providerInitResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('providerInitResponseExpanded')">
+        {{ providerInitResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="providerInitResponseExpanded">{{ providerInitResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- ========== B) ACCOUNT / CARD OPERATIONS ========== -->
+  <section class="panel block-b">
+    <h2>B) Account / Card Operations</h2>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-action" 
+        (click)="accountAccess()" 
+        [disabled]="!providerInitSuccess || cardListLoading"
+      >
+        <span *ngIf="cardListLoading">⏳ Loading...</span>
+        <span *ngIf="!cardListLoading">Account Access (Card List)</span>
+      </button>
+      <span class="badge" 
+            [class.success]="cardListSuccess" 
+            [class.error]="cardListError"
+            [class.pending]="!cardListSuccess && !cardListError">
+        {{ cardListSuccess ? '✔ Success' : (cardListError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="cardListResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('cardListResponseExpanded')">
+        {{ cardListResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="cardListResponseExpanded">{{ cardListResponse | json }}</pre>
+    </div>
+
+    <!-- Card Table -->
+    <div class="card-table" *ngIf="cards.length > 0">
+      <h3>Cards ({{ cards.length }})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Card Alias</th>
+            <th>Masked Number</th>
+            <th>Is Default</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let card of cards">
+            <td>{{ card.alias }}</td>
+            <td>{{ card.cardMasked || 'N/A' }}</td>
+            <td>{{ card['isDefault'] ? 'Yes' : 'No' }}</td>
+            <td>
+              <button class="btn btn-danger btn-sm" (click)="confirmDeleteCard(card)" [disabled]="cardDeleteLoading">
+                Delete
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-action" 
+        (click)="merchantLink()" 
+        [disabled]="!providerInitSuccess || merchantLinkLoading"
+      >
+        <span *ngIf="merchantLinkLoading">⏳ Loading...</span>
+        <span *ngIf="!merchantLinkLoading">Merchant Link</span>
+      </button>
+      <span class="badge" 
+            [class.success]="merchantLinkSuccess" 
+            [class.error]="merchantLinkError"
+            [class.pending]="!merchantLinkSuccess && !merchantLinkError">
+        {{ merchantLinkSuccess ? '✔ Success' : (merchantLinkError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="merchantLinkResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('merchantLinkResponseExpanded')">
+        {{ merchantLinkResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="merchantLinkResponseExpanded">{{ merchantLinkResponse | json }}</pre>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-action" 
+        (click)="merchantUnlink()" 
+        [disabled]="!providerInitSuccess || merchantUnlinkLoading"
+      >
+        <span *ngIf="merchantUnlinkLoading">⏳ Loading...</span>
+        <span *ngIf="!merchantUnlinkLoading">Merchant Unlink</span>
+      </button>
+      <span class="badge" 
+            [class.success]="merchantUnlinkSuccess" 
+            [class.error]="merchantUnlinkError"
+            [class.pending]="!merchantUnlinkSuccess && !merchantUnlinkError">
+        {{ merchantUnlinkSuccess ? '✔ Success' : (merchantUnlinkError ? '✖ Failed' : '○ Pending') }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="merchantUnlinkResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('merchantUnlinkResponseExpanded')">
+        {{ merchantUnlinkResponseExpanded ? '▼' : '▶' }} Response JSON
+      </button>
+      <pre *ngIf="merchantUnlinkResponseExpanded">{{ merchantUnlinkResponse | json }}</pre>
+    </div>
+
+    <div class="action-group" *ngIf="cardDeleteResponse">
+      <span class="badge" 
+            [class.success]="cardDeleteSuccess" 
+            [class.error]="cardDeleteError">
+        {{ cardDeleteSuccess ? '✔ Delete Success' : '✖ Delete Failed' }}
+      </span>
+    </div>
+    <div class="response-section" *ngIf="cardDeleteResponse">
+      <button class="toggle-btn" (click)="toggleResponseExpanded('cardDeleteResponseExpanded')">
+        {{ cardDeleteResponseExpanded ? '▼' : '▶' }} Delete Response JSON
+      </button>
+      <pre *ngIf="cardDeleteResponseExpanded">{{ cardDeleteResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- ========== C) PAYMENT TEST AREA ========== -->
+  <section class="panel block-c">
+    <h2>C) Payment Test Area</h2>
+
+    <!-- Product List -->
+    <div class="product-section" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+      <h3>Product List</h3>
+      <div style="margin-bottom: 10px;">
+        <button class="btn btn-action" (click)="addProduct()" style="margin-right: 10px;">+ Add Product</button>
+        <span style="font-weight: bold;">Total Amount: {{ calculateProductTotal() | number:'1.2-2' }}</span>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+          <tr style="background: #f5f5f5;">
+            <th style="padding: 8px; border: 1px solid #ddd;">Code</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Name</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Qty</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Price</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">VAT %</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Total</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let product of products; let i = index">
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <input type="text" [(ngModel)]="product.productCode" class="form-control" style="width: 100%;" />
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <input type="text" [(ngModel)]="product.productName" class="form-control" style="width: 100%;" />
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <input type="number" [(ngModel)]="product.quantity" (ngModelChange)="updateProductTotal(i)" class="form-control" style="width: 80px;" min="1" />
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <input type="number" [(ngModel)]="product.price" (ngModelChange)="updateProductTotal(i)" class="form-control" style="width: 100px;" min="0" step="0.01" />
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <input type="number" [(ngModel)]="product.vatRate" (ngModelChange)="updateProductTotal(i)" class="form-control" style="width: 80px;" min="0" max="100" step="0.01" />
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <strong>{{ product.productAmount || product.totalPrice | number:'1.2-2' }}</strong>
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <button class="btn btn-danger" (click)="removeProduct(i)" style="padding: 4px 8px; font-size: 12px;">Remove</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top: 10px;">
+        <button class="btn btn-action" (click)="updatePaymentAmountFromProducts()">Update Payment Amount</button>
+        <span style="margin-left: 10px;">Payment Amount: <strong>{{ paymentAmount | number:'1.2-2' }}</strong></span>
+      </div>
+    </div>
+
+    <!-- Registered Card Payment -->
+    <div class="payment-section">
+      <h3>--- Registered Card Payment ---</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Card:</label>
+          <select 
+            [(ngModel)]="selectedCardIndex"
+            (ngModelChange)="onRegisteredCardSelected($event)"
+            class="form-control"
+            [disabled]="cards.length === 0"
+          >
+            <option [value]="-1">Select a card</option>
+            <option *ngFor="let card of cards; let i = index" [value]="i">
+              {{ getCardDisplayLabel(card) }}
+            </option>
+          </select>
+          <small *ngIf="cards.length === 0" class="text-warning" style="color: #856404;">No cards available. Get card list first.</small>
+          <small *ngIf="selectedRegisteredCard" class="text-info" style="color: #004085; display: block; margin-top: 5px;">
+            Selected: {{ selectedRegisteredCard.cardAlias }} ({{ selectedRegisteredCard.cardBin }})
+          </small>
+          <small *ngIf="!selectedRegisteredCard && cards.length > 0" class="text-warning" style="color: #856404; display: block; margin-top: 5px;">
+            Please select a card
+          </small>
+        </div>
+        <div class="form-group">
+          <label>Amount:</label>
+          <input type="number" [(ngModel)]="paymentAmount" class="form-control" />
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" [(ngModel)]="force3D" />
+            Force 3D
+          </label>
+        </div>
+      </div>
+      <div class="action-group">
+        <button 
+          class="btn btn-payment" 
+          (click)="payWithRegisteredCard()" 
+          [disabled]="!providerInitSuccess || !sessionSuccess || cards.length === 0 || !selectedRegisteredCard || registeredPaymentLoading"
+        >
+          <span *ngIf="registeredPaymentLoading">⏳ Processing...</span>
+          <span *ngIf="!registeredPaymentLoading">Pay With Registered Card</span>
+        </button>
+        <span class="badge" 
+              [class.success]="registeredPaymentSuccess" 
+              [class.error]="registeredPaymentError"
+              [class.action-required]="registeredPaymentResponse?.status === 'ACTION_REQUIRED'"
+              [class.pending]="!registeredPaymentSuccess && !registeredPaymentError">
+          {{ registeredPaymentSuccess ? '✔ Success' : (registeredPaymentError ? '✖ Failed' : (registeredPaymentResponse?.status === 'ACTION_REQUIRED' ? '⚠ Action Required' : '○ Pending')) }}
+        </span>
+      </div>
+      <div class="response-section" *ngIf="registeredPaymentResponse">
+        <button class="toggle-btn" (click)="toggleResponseExpanded('registeredPaymentResponseExpanded')">
+          {{ registeredPaymentResponseExpanded ? '▼' : '▶' }} Payment Response JSON
+        </button>
+        <pre *ngIf="registeredPaymentResponseExpanded">{{ registeredPaymentResponse | json }}</pre>
+      </div>
+    </div>
+
+    <!-- Manual Card Payment -->
+    <div class="payment-section">
+      <h3>--- Manual Card Payment ---</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Card Number:</label>
+          <input type="text" [(ngModel)]="manualCardForm.cardNumber" placeholder="5528 7900 0000 0008" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Card Holder Name:</label>
+          <input type="text" [(ngModel)]="manualCardForm.cardHolderName" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Expiry Month (MM):</label>
+          <input type="text" [(ngModel)]="manualCardForm.expiryMonth" maxlength="2" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Expiry Year (YY):</label>
+          <input type="text" [(ngModel)]="manualCardForm.expiryYear" maxlength="2" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>CVV:</label>
+          <input type="text" [(ngModel)]="manualCardForm.cvv" maxlength="4" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Amount:</label>
+          <input type="number" [(ngModel)]="paymentAmount" class="form-control" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex: 1;">
+          <label>Card Alias:</label>
+          <input type="text" [(ngModel)]="manualCardForm.cardAlias" placeholder="My Card" class="form-control" />
+        </div>
+        <div class="form-group" style="display: flex; align-items: flex-end; padding-left: 10px;">
+          <button 
+            class="btn btn-action" 
+            (click)="addCard()" 
+            [disabled]="!providerInitSuccess || !sessionSuccess || addCardLoading"
+            style="margin-bottom: 0;"
+          >
+            <span *ngIf="addCardLoading">⏳ Kaydediliyor...</span>
+            <span *ngIf="!addCardLoading">Kart Kaydet</span>
+          </button>
+          <span class="badge" 
+                [class.success]="addCardSuccess" 
+                [class.error]="addCardError"
+                [class.pending]="!addCardSuccess && !addCardError"
+                style="margin-left: 10px;">
+            {{ addCardSuccess ? '✔' : (addCardError ? '✖' : '○') }}
+          </span>
+        </div>
+      </div>
+      <div class="action-group">
+        <button 
+          class="btn btn-payment" 
+          (click)="payWithManualCard()" 
+          [disabled]="!providerInitSuccess || !sessionSuccess || manualPaymentLoading"
+        >
+          <span *ngIf="manualPaymentLoading">⏳ Processing...</span>
+          <span *ngIf="!manualPaymentLoading">Pay With Manual Card</span>
+        </button>
+        <span class="badge" 
+              [class.success]="manualPaymentSuccess" 
+              [class.error]="manualPaymentError"
+              [class.action-required]="manualPaymentResponse?.status === 'ACTION_REQUIRED'"
+              [class.pending]="!manualPaymentSuccess && !manualPaymentError">
+          {{ manualPaymentSuccess ? '✔ Success' : (manualPaymentError ? '✖ Failed' : (manualPaymentResponse?.status === 'ACTION_REQUIRED' ? '⚠ Action Required' : '○ Pending')) }}
+        </span>
+      </div>
+      <div class="response-section" *ngIf="manualPaymentResponse">
+        <button class="toggle-btn" (click)="toggleResponseExpanded('manualPaymentResponseExpanded')">
+          {{ manualPaymentResponseExpanded ? '▼' : '▶' }} Payment Response JSON
+        </button>
+        <pre *ngIf="manualPaymentResponseExpanded">{{ manualPaymentResponse | json }}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== D) OTP / ACTION FLOW HANDLER ========== -->
+  <section class="panel block-d">
+    <h2>D) OTP / Action Flow Handler</h2>
+    <p class="info-text">
+      This section handles ACTION_REQUIRED responses automatically.
+      OTP dialogs, Merchant Link confirmations, and other action flows are handled by the Flow Runner Service.
+      Check the Debug Panel below to see the flow steps.
+    </p>
+    
+    <!-- OTP Verify Response -->
+    <div class="response-section" *ngIf="otpVerifyResponse">
+      <div class="response-header">
+        <span class="response-label">OTP Verify Response:</span>
+        <span class="badge" [class.badge-success]="otpVerifySuccess" [class.badge-error]="!otpVerifySuccess && otpVerifyError" [class.badge-pending]="otpVerifyLoading">
+          <span *ngIf="otpVerifyLoading">⏳ PENDING</span>
+          <span *ngIf="!otpVerifyLoading && otpVerifySuccess">✓ SUCCESS</span>
+          <span *ngIf="!otpVerifyLoading && !otpVerifySuccess && otpVerifyError">✖ FAILED</span>
+        </span>
+        <a href="javascript:void(0)" (click)="toggleResponseExpanded('otpVerifyResponse')" class="toggle-link">
+          {{ otpVerifyResponseExpanded ? '▼' : '►' }} Response JSON
+        </a>
+      </div>
+      <div class="error-message" *ngIf="otpVerifyError">
+        {{ otpVerifyError }}
+      </div>
+      <pre class="response-json" *ngIf="otpVerifyResponseExpanded">{{ otpVerifyResponse | json }}</pre>
+    </div>
+  </section>
+
+  <!-- ========== DEBUG PANEL ========== -->
+  <section class="panel debug-panel">
+    <h2>Debug Log Panel</h2>
+
+    <div class="debug-controls">
+      <button class="btn btn-secondary" (click)="copyLogs()">Copy Logs (JSON)</button>
+      <button class="btn btn-secondary" (click)="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="current-state">
+      <h3>Current State</h3>
+      <pre>{{ currentState | json }}</pre>
+    </div>
+
+    <div class="logs-container">
+      <h3>Step Timeline ({{ logs.length }} steps)</h3>
+      <div class="log-entry" *ngFor="let log of logs; let i = index">
+        <div class="log-header">
+          <span class="log-step">Step {{ i + 1 }}</span>
+          <span class="log-time">{{ log.timestamp | date:'HH:mm:ss.SSS' }}</span>
+          <span class="log-action">{{ log.actionName }}</span>
+          <span class="log-status" 
+                [class.success]="log.normalizedResult?.success" 
+                [class.error]="!log.normalizedResult?.success && log.normalizedResult"
+                [class.action-required]="log.normalizedResult?.status === 'ACTION_REQUIRED'">
+            {{ log.normalizedResult?.status || (log.error ? 'ERROR' : 'PENDING') }}
+          </span>
+        </div>
+        
+        <div class="log-details" *ngIf="log.request">
+          <strong>Request:</strong>
+          <pre>{{ log.request | json }}</pre>
+        </div>
+        
+        <div class="log-details" *ngIf="log.response">
+          <strong>Response:</strong>
+          <pre>{{ log.response | json }}</pre>
+        </div>
+        
+        <div class="log-details" *ngIf="log.normalizedResult">
+          <strong>Normalized Result:</strong>
+          <pre>{{ log.normalizedResult | json }}</pre>
+        </div>
+        
+        <div class="log-details error" *ngIf="log.error">
+          <strong>Error:</strong>
+          <pre>{{ log.error }}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

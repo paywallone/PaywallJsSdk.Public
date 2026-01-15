@@ -1,0 +1,44 @@
+<div class="dialog-backdrop" *ngIf="show" (click)="onBackdropClick($event)">
+  <div class="dialog-container" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>{{ title }}</h3>
+      <button class="close-btn" (click)="cancel()">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div *ngIf="cards.length === 0" class="no-cards">
+        <p>No cards available</p>
+      </div>
+      <div *ngIf="cards.length > 0" class="cards-list">
+        <div 
+          *ngFor="let card of cards" 
+          class="card-item"
+          [class.selected]="selectedCard?.alias === card.alias"
+          (click)="selectCard(card)"
+        >
+          <div class="card-info">
+            <div class="card-alias">{{ card.alias }}</div>
+            <div class="card-details" *ngIf="card.cardMasked">
+              {{ formatCardMasked(card) }}
+            </div>
+            <div class="card-details" *ngIf="card.expiryDate">
+              Expires: {{ card.expiryDate }}
+            </div>
+          </div>
+          <div class="card-check" *ngIf="selectedCard?.alias === card.alias">
+            ✓
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" (click)="cancel()">Cancel</button>
+      <button 
+        class="btn btn-primary" 
+        (click)="confirm()" 
+        [disabled]="!selectedCard"
+      >
+        Select
+      </button>
+    </div>
+  </div>
+</div>
