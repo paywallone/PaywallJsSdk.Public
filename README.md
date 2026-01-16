@@ -90,7 +90,7 @@ SDK initialize edildikten sonra, Masterpass session'ı başlatın:
 ```javascript
 async function startMasterpassSession() {
   const response = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-    referenceCode: 'REF-' + Date.now(),
+    referenceCode: Date.now().toString(),
     userId: 'user123',
     userPhone: '5551234567',
     force3D: false
@@ -255,7 +255,7 @@ async function completePaymentFlow() {
     }
     
     const sessionResponse = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-      referenceCode: 'REF-' + Date.now(),
+      referenceCode: Date.now().toString(),
       userId: 'user123',
       userPhone: '5551234567'
     });
