@@ -41,4 +41,3 @@ interface PaywallJsSdkType {
 }
 
 export {};
-export {};

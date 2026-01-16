@@ -34,17 +34,24 @@ public-sdk/paywall-jssdk.1.0.4.umd.js
 
 ### Adım 1: Geçici Token Alın
 
-Backend API'nizden geçici bir access token alın. Bu token, SDK'nın Paywall API ile iletişim kurması için gereklidir.
+Paywall API'nize istek atarak geçici bir access token alın. Bu token, SDK'nın Paywall API ile iletişim kurması için gereklidir.
+
+**Not:** Bu fonksiyon örnek amaçlıdır. Merchant'lar kendi backend yapılarına göre bu fonksiyonu tamamen değiştirebilirler. Önemli olan, Paywall API'den geçerli bir token alınmasıdır.
 
 ```javascript
 async function getTempToken() {
-  const response = await fetch('https://your-backend.com/api/auth/temp-token', {
+  const response = await fetch('https://dev-payment-api.itspaywall.com/api/auth/temp-token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      merchantId: 'YOUR_MERCHANT_ID'
+      "ClientCardSave": true,
+      "ThreeDSession": false,
+      "ClientSdk": true,
+      "ScopeBased": false,
+      "Scope": 0,
+      "ExpiryMin": 1440
     })
   });
   
@@ -62,9 +69,8 @@ async function initializeSDK() {
   const tempToken = await getTempToken();
   
   const response = await PaywallJsSdk.Init({
-    merchantId: 'YOUR_MERCHANT_ID',
     token: tempToken,
-    environment: 'prod'
+    environment: 'dev'
   });
   
   if (response.success && response.data?.sdkInitialized) {
@@ -152,6 +158,86 @@ async function startPayment() {
 }
 ```
 
+## Diğer Önemli Fonksiyonlar
+
+### Kart Ekleme
+
+```javascript
+async function addCard() {
+  const response = await PaywallJsSdk.providers.masterpass.addCard({
+    accountKey: 'user123',
+    cardNumber: '5555555555554444',
+    expiryDate: '12/26',
+    cvv: '123',
+    cardHolderName: 'John Doe',
+    accountAliasName: 'My Card'
+  });
+  
+  if (response.success) {
+    console.log('Card added:', response.data);
+    return response.data.cardAlias;
+  } else {
+    console.error('Add card failed:', response.message);
+    return null;
+  }
+}
+```
+
+### Kart Silme
+
+```javascript
+async function deleteCard(cardAlias) {
+  const response = await PaywallJsSdk.providers.masterpass.deleteCard({
+    accountKey: 'user123',
+    cardAlias: cardAlias
+  });
+  
+  if (response.success) {
+    console.log('Card deleted successfully');
+    return true;
+  } else {
+    console.error('Delete card failed:', response.message);
+    return false;
+  }
+}
+```
+
+### Access Account (Kayıtlı Kartları Listeleme)
+
+```javascript
+async function getSavedCards() {
+  const response = await PaywallJsSdk.providers.masterpass.accessAccount({
+    accountKey: 'user123'
+  });
+  
+  if (response.success) {
+    console.log('Saved cards:', response.data);
+    return response.data.cards;
+  } else {
+    console.error('Access account failed:', response.message);
+    return [];
+  }
+}
+```
+
+### Merchant Link (Kullanıcıyı Merchant'a Bağlama)
+
+```javascript
+async function linkToMerchant() {
+  const response = await PaywallJsSdk.providers.masterpass.merchantLink({
+    accountKey: 'user123'
+  });
+  
+  if (response.success) {
+    console.log('Merchant link successful');
+    return true;
+  } else {
+    console.error('Merchant link failed:', response.message);
+    return false;
+  }
+}
+```
+
 ## Tam Örnek
 
 ```javascript
@@ -160,9 +246,8 @@ async function completePaymentFlow() {
     const tempToken = await getTempToken();
     
     const initResponse = await PaywallJsSdk.Init({
-      merchantId: 'YOUR_MERCHANT_ID',
       token: tempToken,
-      environment: 'prod'
+      environment: 'dev'
     });
     
     if (!initResponse.success) {
@@ -216,8 +301,7 @@ async function completePaymentFlow() {
 SDK'yı initialize eder.
 
 **Parametreler:**
-- `merchantId` (string): Merchant ID
-- `token` (string): Geçici access token
+- `token` (string): Geçici access token (Paywall API'den alınan)
 - `environment` (string): 'dev' | 'test' | 'prod'
 
 ### PaywallJsSdk.ExternalService.Masterpass.startSession(params)
@@ -247,6 +331,36 @@ Masterpass provider'ı initialize eder.
 - `failUrl` (string): Hata URL'i
 - `clientIp` (string): İstemci IP adresi
 - `installment` (number): Taksit sayısı
+
+### PaywallJsSdk.providers.masterpass.addCard(params)
+Kart ekler.
+
+**Parametreler:**
+- `accountKey` (string): Kullanıcı account key
+- `cardNumber` (string): Kart numarası
+- `expiryDate` (string): Son kullanma tarihi (MM/YY formatında)
+- `cvv` (string): CVV kodu
+- `cardHolderName` (string): Kart sahibi adı
+- `accountAliasName` (string): Kart için alias adı
+
+### PaywallJsSdk.providers.masterpass.deleteCard(params)
+Kart siler.
+
+**Parametreler:**
+- `accountKey` (string): Kullanıcı account key
+- `cardAlias` (string): Silinecek kartın alias'ı
+
+### PaywallJsSdk.providers.masterpass.accessAccount(params)
+Kayıtlı kartları listeler.
+
+**Parametreler:**
+- `accountKey` (string): Kullanıcı account key
+
+### PaywallJsSdk.providers.masterpass.merchantLink(params)
+Kullanıcıyı merchant'a bağlar.
+
+**Parametreler:**
+- `accountKey` (string): Kullanıcı account key
 
 ## Response Formatları
 
