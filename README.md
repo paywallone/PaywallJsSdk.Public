@@ -1,3 +1,11 @@
+## TANITIM
+
+Bu repo altında 2 proje bulunmaktadır. public-sdk ve paywall-sdk-test.
+
+public-sdk projesi direkt olarak Paywall SDK'sının kendisidir.
+
+paywall-sdk-test projesi ise public-sdk projesi altındaki Paywall SDK'sının kullanımı için hazırlanmış örnek bir projedir.
+
 # Paywall JavaScript SDK
 
 Paywall ödeme altyapısı için JavaScript SDK. Tarayıcıda direkt kullanım için UMD formatında hazırlanmıştır.
@@ -37,6 +45,8 @@ public-sdk/paywall-jssdk.1.0.4.umd.js
 Paywall API'nize istek atarak geçici bir access token alın. Bu token, SDK'nın Paywall API ile iletişim kurması için gereklidir.
 
 **Not:** Bu fonksiyon örnek amaçlıdır. Merchant'lar kendi backend yapılarına göre bu fonksiyonu tamamen değiştirebilirler. Önemli olan, Paywall API'den geçerli bir token alınmasıdır.
+
+Detaylı bilgi için: [Paywall Yetkilendirme Dokümantasyonu](https://developer.paywall.one/client-side-servisler/yetkilendirme)
 
 ```javascript
 async function getTempToken() {
@@ -90,7 +100,7 @@ SDK initialize edildikten sonra, Masterpass session'ı başlatın:
 ```javascript
 async function startMasterpassSession() {
   const response = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-    referenceCode: Date.now().toString(),
+    referenceCode: Date.now().toString(), // Veya sisteminizdeki takip kodu/numarası
     userId: 'user123',
     userPhone: '5551234567',
     force3D: false
@@ -255,7 +265,7 @@ async function completePaymentFlow() {
     }
     
     const sessionResponse = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-      referenceCode: Date.now().toString(),
+      referenceCode: Date.now().toString(), // Veya sisteminizdeki takip kodu/numarası
       userId: 'user123',
       userPhone: '5551234567'
     });
