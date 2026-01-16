@@ -1,10 +1,10 @@
-## TANITIM
+## Tanıtım
 
-Bu repo altında 2 proje bulunmaktadır. public-sdk ve paywall-sdk-test.
+Bu repository iki ana bileşenden oluşmaktadır:
 
-public-sdk projesi direkt olarak Paywall SDK'sının kendisidir.
+- **public-sdk**: Paywall JavaScript SDK'nın dağıtım dosyasını içerir. Merchant'lar bu klasörden SDK dosyasını indirerek kendi projelerinde kullanabilirler.
 
-paywall-sdk-test projesi ise public-sdk projesi altındaki Paywall SDK'sının kullanımı için hazırlanmış örnek bir projedir.
+- **paywall-sdk-test**: Paywall SDK'nın kullanımını gösteren örnek bir Angular test projesidir. SDK'nın nasıl entegre edileceğini ve kullanılacağını gösterir.
 
 # Paywall JavaScript SDK
 
