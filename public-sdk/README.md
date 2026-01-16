@@ -18,7 +18,8 @@ Bu dokümantasyon, Paywall JavaScript SDK'nın tüm fonksiyonlarını, parametre
 
 ---
 
-## PaywallJsSdk.Init() {#paywalljssdkinit}
+<a id="paywalljssdkinit"></a>
+## PaywallJsSdk.Init()
 
 SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config validation ve state set eder.
 
@@ -76,7 +77,7 @@ await PaywallJsSdk.Init({
 
 ---
 
-## PaywallJsSdk.ExternalService.Masterpass.startSession() {#start-session}
+## PaywallJsSdk.ExternalService.Masterpass.startSession() <a id="start-session"></a>
 
 Masterpass session başlatır. Bu fonksiyon Paywall API'ye istek atarak session oluşturur.
 
@@ -160,7 +161,7 @@ await PaywallJsSdk.ExternalService.Masterpass.startSession({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.init() {#masterpass-provider-init}
+## PaywallJsSdk.providers.masterpass.init() <a id="masterpass-provider-init"></a>
 
 Masterpass provider'ı initialize eder. Session başlatıldıktan sonra çağrılmalıdır.
 
@@ -196,7 +197,7 @@ await PaywallJsSdk.providers.masterpass.init({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.addCard() {#add-card}
+## PaywallJsSdk.providers.masterpass.addCard() <a id="add-card"></a>
 
 Kart ekler. Kart bilgileri RSA ile şifrelenerek gönderilir.
 
@@ -273,7 +274,7 @@ await PaywallJsSdk.providers.masterpass.addCard({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.deleteCard() {#delete-card}
+## PaywallJsSdk.providers.masterpass.deleteCard() <a id="delete-card"></a>
 
 Kayıtlı kartı siler.
 
@@ -313,7 +314,7 @@ await PaywallJsSdk.providers.masterpass.deleteCard({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.accessAccount() {#access-account}
+## PaywallJsSdk.providers.masterpass.accessAccount() <a id="access-account"></a>
 
 Kayıtlı kartları listeler.
 
@@ -415,7 +416,7 @@ await PaywallJsSdk.providers.masterpass.accessAccount({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.merchantLink() {#merchant-link}
+## PaywallJsSdk.providers.masterpass.merchantLink() <a id="merchant-link"></a>
 
 Kullanıcıyı merchant'a bağlar.
 
@@ -486,7 +487,7 @@ await PaywallJsSdk.providers.masterpass.merchantLink({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.verifyOtp() {#verify-otp}
+## PaywallJsSdk.providers.masterpass.verifyOtp() <a id="verify-otp"></a>
 
 OTP kodunu doğrular.
 
@@ -527,7 +528,7 @@ await PaywallJsSdk.providers.masterpass.verifyOtp({
 
 ---
 
-## PaywallJsSdk.providers.masterpass.resendOtp() {#resend-otp}
+## PaywallJsSdk.providers.masterpass.resendOtp() <a id="resend-otp"></a>
 
 OTP kodunu yeniden gönderir.
 
@@ -557,7 +558,7 @@ Bu fonksiyon parametre almaz.
 
 ---
 
-## PaywallJsSdk.providers.masterpass.unlinkMerchant() {#unlink-merchant}
+## PaywallJsSdk.providers.masterpass.unlinkMerchant() <a id="unlink-merchant"></a>
 
 Kullanıcıyı merchant'tan ayırır.
 
@@ -591,7 +592,7 @@ await PaywallJsSdk.providers.masterpass.unlinkMerchant({
 
 ---
 
-## PaywallJsSdk.payment.init() {#payment-init}
+## PaywallJsSdk.payment.init() <a id="payment-init"></a>
 
 Ödeme işlemini başlatır. Manuel kart veya kayıtlı kart ile ödeme yapılabilir. Bu fonksiyon önce Paywall API'ye ödeme kaydı oluşturur, sonra Masterpass SDK'ya ödeme isteği gönderir.
 
