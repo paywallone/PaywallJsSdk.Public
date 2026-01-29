@@ -1,1070 +1,1515 @@
-# Paywall JavaScript SDK - API Dokümantasyonu
+# Paywall JS SDK - Dokümantasyon
 
-Bu dokümantasyon, Paywall JavaScript SDK'nın tüm fonksiyonlarını, parametrelerini ve response formatlarını içermektedir.
+Paywall JavaScript SDK, Masterpass ödeme entegrasyonu için geliştirilmiş, PCI-DSS uyumlu bir JavaScript kütüphanesidir. Bu SDK, kart bilgilerini güvenli bir şekilde işleyerek ödeme işlemlerini gerçekleştirmenizi sağlar.
 
 ## İçindekiler
 
-1. [PaywallJsSdk.Init()](#paywalljssdkinit)
-2. [PaywallJsSdk.ExternalService.Masterpass.startSession()](#start-session)
-3. [PaywallJsSdk.providers.masterpass.init()](#masterpass-provider-init)
-4. [PaywallJsSdk.providers.masterpass.addCard()](#add-card)
-5. [PaywallJsSdk.providers.masterpass.deleteCard()](#delete-card)
-6. [PaywallJsSdk.providers.masterpass.accessAccount()](#access-account)
-7. [PaywallJsSdk.providers.masterpass.merchantLink()](#merchant-link)
-8. [PaywallJsSdk.providers.masterpass.verifyOtp()](#verify-otp)
-9. [PaywallJsSdk.providers.masterpass.resendOtp()](#resend-otp)
-10. [PaywallJsSdk.providers.masterpass.unlinkMerchant()](#unlink-merchant)
-11. [PaywallJsSdk.payment.init()](#payment-init)
+1. [Genel Bakış](#1-genel-bakış)
+2. [Kurulum](#2-kurulum)
+3. [Hızlı Başlangıç](#3-hızlı-başlangıç)
+4. [API Referansı](#4-api-referansı)
+5. [Response Formatları](#5-response-formatları)
+6. [Güvenlik ve PCI-DSS Uyumluluğu](#6-güvenlik-ve-pci-dss-uyumluluğu)
+7. [Hata Yönetimi](#7-hata-yönetimi)
+8. [Best Practices](#8-best-practices)
+9. [Örnekler](#9-örnekler)
+10. [TypeScript Desteği](#10-typescript-desteği)
+11. [Debugging](#11-debugging)
+12. [Sürüm Notları](#12-sürüm-notları)
+13. [Destek ve İletişim](#13-destek-ve-iletişim)
 
 ---
 
-<a id="paywalljssdkinit"></a>
-## PaywallJsSdk.Init()
+## 1. Genel Bakış
+
+### 1.1. SDK'nın Amacı ve Kullanım Alanları
+
+Paywall JS SDK, e-ticaret sitelerinde ve web uygulamalarında Masterpass ödeme işlemlerini gerçekleştirmek için tasarlanmıştır. SDK şu özellikleri sunar:
+
+- **Kart Kaydı**: Kullanıcıların kartlarını güvenli bir şekilde kaydetmesi
+- **Ödeme İşlemleri**: Manuel kart veya kayıtlı kart ile ödeme yapılması
+- **Kart Yönetimi**: Kayıtlı kartların listelenmesi, silinmesi
+- **Merchant Link**: Kullanıcıların merchant'a bağlanması
+- **3D Secure Desteği**: 3D Secure doğrulama akışı
+- **OTP Desteği**: Banka OTP doğrulama akışı
+
+### 1.2. PCI-DSS Uyumluluğu ve Güvenlik Özellikleri
+
+SDK, PCI-DSS (Payment Card Industry Data Security Standard) uyumludur ve aşağıdaki güvenlik özelliklerini sağlar:
+
+- **Kart Bilgileri Şifreleme**: Kart numarası ve CVV bilgileri RSA ile şifrelenir
+- **Güvenli İletişim**: Tüm API çağrıları HTTPS üzerinden yapılır
+- **Veri Saklama**: Kart bilgileri SDK state'inde, loglarda veya storage'da tutulmaz
+- **Token Yönetimi**: Token'lar merchant backend'den alınır, SDK token üretmez
+
+### 1.3. Desteklenen Ödeme Yöntemleri
+
+- **Masterpass**: Masterpass ödeme yöntemi tam olarak desteklenmektedir
+
+---
+
+## 2. Kurulum
+
+### 2.1. CDN Kullanımı
+
+SDK'yı CDN üzerinden yüklemek için HTML dosyanıza aşağıdaki script tag'ini ekleyin:
+
+```html
+<script src="https://cdn.example.com/paywall-jssdk.1.0.4.umd.js"></script>
+<script>
+  if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
+    window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
+  }
+</script>
+```
+
+### 2.2. Local Dosya Kullanımı
+
+SDK dosyasını projenize indirip local olarak kullanabilirsiniz:
+
+```html
+<script src="/path/to/paywall-jssdk.1.0.4.umd.js"></script>
+<script>
+  if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
+    window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
+  }
+</script>
+```
+
+### 2.3. TypeScript Desteği
+
+TypeScript kullanıyorsanız, type definitions dosyasını projenize ekleyin:
+
+```typescript
+// paywall-sdk.d.ts
+declare global {
+  interface Window {
+    PaywallJsSdk: PaywallJsSdkType;
+  }
+}
+
+interface PaywallJsSdkType {
+  Init: (params: {
+    token: string;
+    environment: 'dev' | 'test' | 'prod';
+    merchantId?: string;
+    timeoutMs?: number;
+    logLevel?: 'none' | 'error' | 'info' | 'debug';
+  }) => Promise<SdkResponse>;
+  // ... diğer metodlar
+}
+
+export {};
+```
+
+---
+
+## 3. Hızlı Başlangıç
+
+### 3.1. Minimum Çalışan Kod Örneği
+
+```typescript
+// 1. SDK'yı initialize et
+await PaywallJsSdk.Init({
+  environment: 'test',
+  token: 'TOKEN_FROM_MERCHANT_BACKEND'
+});
+
+// 2. Session başlat
+const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+  referenceCode: Date.now().toString(),
+  userId: 'USER_123',
+  userPhone: '905437892802'
+});
+
+// 3. Provider'ı initialize et
+await PaywallJsSdk.providers.masterpass.init({
+  accountKey: '905437892802'
+});
+
+// 4. Ödeme yap (kayıtlı kart ile)
+const payment = await PaywallJsSdk.payment.init({
+  sessionId: session.data.sessionId,
+  paymentSource: 'REGISTERED_CARD',
+  paymentDetail: {
+    amount: 100.00,
+    currencyId: 949,
+    merchantUniqueCode: 'ORDER-001',
+    trackingCode: 'TRACK-001',
+    successUrl: 'https://merchant.com/success',
+    failUrl: 'https://merchant.com/fail',
+    clientIp: '192.168.1.1',
+    installment: 1
+  },
+  card: {
+    cardAlias: 'MyCard',
+    cardBin: '540667',
+    cardMasked: '540667******0001',
+    ownerName: 'John Doe'
+  },
+  cardData: {
+    cardAlias: 'MyCard'
+  },
+  products: [
+    {
+      productId: 'PROD-001',
+      productName: 'Product 1',
+      productAmount: 100.00
+    }
+  ]
+});
+
+// 5. Response handling
+if (payment.success && payment.data.status === 'SUCCESS') {
+  console.log('Ödeme başarılı!');
+} else if (payment.data.status === 'ACTION_REQUIRED') {
+  if (payment.data.actionType === '3D') {
+    window.location.href = payment.data.redirectUrl;
+  }
+}
+```
+
+### 3.2. Temel Ödeme Akışı
+
+1. **SDK Initialization**: `PaywallJsSdk.Init()` ile SDK'yı başlatın
+2. **Session Start**: `PaywallJsSdk.ExternalService.Masterpass.startSession()` ile session oluşturun
+3. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
+4. **Payment**: `PaywallJsSdk.payment.init()` veya `PaywallJsSdk.payment.registerAndPurchase()` ile ödeme yapın
+5. **Response Handling**: Response'u kontrol edip gerekli aksiyonları alın
+
+---
+
+## 4. API Referansı
+
+### 4.1. Initialization
+
+#### `PaywallJsSdk.Init(config)`
 
 SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config validation ve state set eder.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.Init({
-  token: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  environment: "dev" // veya "test" veya "prod"
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `token` | string | ✅ | Geçici access token (GUID formatında, merchant backend'den alınmalı) |
+| `environment` | string | ✅ | Ortam tipi: `'dev'`, `'test'` veya `'prod'` |
+| `merchantId` | string | ❌ | Merchant ID (opsiyonel, session'dan da alınabilir) |
+| `timeoutMs` | number | ❌ | Request timeout süresi (opsiyonel, default: 10000) |
+| `logLevel` | string | ❌ | Log seviyesi: `'none'`, `'error'`, `'info'`, `'debug'` (opsiyonel, default: `'error'`) |
+
+**Environment Seçenekleri:**
+
+- `'dev'`: Development ortamı
+- `'test'`: Test ortamı
+- `'prod'`: Production ortamı
+
+**Örnek:**
+
+```typescript
+const response = await PaywallJsSdk.Init({
+  environment: 'test',
+  token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+  logLevel: 'debug'
 });
-```
 
-### Parametreler
-
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `token` | string | Geçici access token (GUID formatında, zorunlu) |
-| `environment` | string | Ortam tipi: 'dev', 'test' veya 'prod' (zorunlu) |
-| `merchantId` | string | Merchant ID (opsiyonel, session'dan da alınabilir) |
-| `timeoutMs` | number | Request timeout süresi (opsiyonel, default: 10000) |
-| `logLevel` | string | Log seviyesi (opsiyonel, default: 'error') |
-
-### Başarılı Response
-
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "SDK",
-  "message": "SDK initialized successfully",
-  "data": {
-    "environment": "dev",
-    "sdkInitialized": true
-  }
+if (response.success) {
+  console.log('SDK initialized successfully');
+} else {
+  console.error('SDK initialization failed:', response.message);
 }
 ```
 
-### Başarısız
+**Response:**
 
-```json
+```typescript
 {
-  "success": false,
-  "status": "FAILED",
-  "source": "SDK",
-  "message": "Token is required and cannot be empty. Please provide a valid token.",
-  "data": {
-    "environment": "dev",
-    "sdkInitialized": false,
-    "providerMeta": {
-      "responseCode": "MISSING_TOKEN"
-    }
+  success: true,
+  status: 'SUCCESS',
+  source: 'SDK',
+  message: 'SDK initialized successfully',
+  data: {
+    environment: 'test',
+    sdkInitialized: true
   }
 }
 ```
 
 ---
 
-## PaywallJsSdk.ExternalService.Masterpass.startSession() <a id="start-session"></a>
+### 4.2. Masterpass Provider
+
+#### Session Yönetimi
+
+##### `PaywallJsSdk.ExternalService.Masterpass.startSession(params)`
 
 Masterpass session başlatır. Bu fonksiyon Paywall API'ye istek atarak session oluşturur.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.ExternalService.Masterpass.startSession({
-  referenceCode: "1737123456789",
-  userId: "user123",
-  userPhone: "5551234567",
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `referenceCode` | string | ✅ | Benzersiz referans kodu (sadece sayı olmalı) |
+| `userId` | string | ✅ | Kullanıcı ID |
+| `userPhone` | string | ✅ | Kullanıcı telefon numarası |
+| `force3D` | boolean | ❌ | 3D Secure zorunlu mu? (default: `false`) |
+| `phoneVerifiedByMerchant` | boolean | ❌ | Telefon merchant tarafından doğrulandı mı? (default: `true`) |
+
+**Örnek:**
+
+```typescript
+const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+  referenceCode: Date.now().toString(),
+  userId: 'USER_123',
+  userPhone: '905437892802',
   force3D: false,
   phoneVerifiedByMerchant: true
 });
 ```
 
-### Parametreler
+**Response:**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `referenceCode` | string | Benzersiz referans kodu (sadece sayı olmalı, zorunlu) |
-| `userId` | string | Kullanıcı ID (zorunlu) |
-| `userPhone` | string | Kullanıcı telefon numarası (zorunlu) |
-| `force3D` | boolean | 3D Secure zorunlu mu? (opsiyonel, default: false) |
-| `phoneVerifiedByMerchant` | boolean | Telefon merchant tarafından doğrulandı mı? (opsiyonel, default: true) |
-
-### Başarılı Response
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "SUCCESS",
-  "source": "PAYWALL",
-  "message": "Masterpass session created successfully.",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "sessionExpiryDate": "2026-01-14T14:25:13+03:00",
-    "masterpassToken": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.xxxxxxxxxx...",
-    "masterpassMerchantId": "11111111",
-    "masterpassTerminalGroupId": "11111111111111111111111",
-    "isProd": false,
-    "isTest": true,
-    "isUat": false,
-    "providerMeta": {
-      "httpStatus": 200,
-      "responseCode": "SUCCESS",
-      "raw": { ... }
-    }
+  success: true,
+  status: 'SUCCESS',
+  source: 'PAYWALL',
+  message: 'Masterpass session created successfully.',
+  data: {
+    sessionId: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    sessionExpiryDate: '2026-01-14T14:25:13+03:00',
+    masterpassToken: 'eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...',
+    masterpassMerchantId: '11111111',
+    masterpassTerminalGroupId: '11111111111111111111111',
+    isProd: false,
+    isTest: true,
+    isUat: false
   }
 }
 ```
 
-### Başarısız
+##### `PaywallJsSdk.ExternalService.Masterpass.createSession(params)`
 
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "SDK",
-  "message": "referenceCode is required and cannot be empty.",
-  "errorCode": "MISSING_REFERENCE_CODE",
-  "data": {
-    "field": "referenceCode"
-  }
-}
-```
+`startSession()` ile aynı işlevi görür. (Alias)
 
-### Session Süresi Bittiğinde
+#### Kart İşlemleri
 
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "SDK",
-  "message": "Masterpass session not found or expired.",
-  "errorCode": "SESSION_EXPIRED",
-  "data": {
-    "actionHint": "Please start a new session."
-  }
-}
-```
-
----
-
-## PaywallJsSdk.providers.masterpass.init() <a id="masterpass-provider-init"></a>
-
-Masterpass provider'ı initialize eder. Session başlatıldıktan sonra çağrılmalıdır.
-
-### Request
-
-```javascript
-await PaywallJsSdk.providers.masterpass.init({
-  accountKey: "5555555555"
-});
-```
-
-### Parametreler
-
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu) |
-
-**Not:** Bu fonksiyon parametresiz de çağrılabilir. Session state'inden otomatik olarak token ve merchantId alınır.
-
-### Başarılı Response
-
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "Masterpass provider initialized successfully",
-  "data": {
-    "initialized": true
-  }
-}
-```
-
----
-
-## PaywallJsSdk.providers.masterpass.addCard() <a id="add-card"></a>
+##### `PaywallJsSdk.providers.masterpass.AddCard(params)`
 
 Kart ekler. Kart bilgileri RSA ile şifrelenerek gönderilir.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.providers.masterpass.addCard({
-  accountKey: "5555555555",
-  accountKeyType: "Msisdn",
-  userId: "user-12345",
-  accountAliasName: "MyCard",
-  cardHolderName: "John Doe",
-  cardNumber: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6...", // Şifrelenmiş (RSA)
-  expiryDate: "2612",
-  cvv: "x9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4...", // Şifrelenmiş (RSA)
-  requestReferenceNumber: "111111111111",
-  deviceFingerPrint: ""
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key (genellikle telefon numarası) |
+| `accountKeyType` | string | ✅ | Account key tipi: `'Msisdn'` |
+| `userId` | string | ✅ | Kullanıcı ID (maksimum 101 karakter) |
+| `accountAliasName` | string | ✅ | Kart için alias adı (maksimum 41 karakter) |
+| `cardHolderName` | string | ✅ | Kart sahibi adı (maksimum 51 karakter) |
+| `cardNumber` | string | ✅ | Kart numarası (RSA ile şifrelenecek) |
+| `expiryDate` | string | ✅ | Son kullanma tarihi (MMYY formatında, örn: `'2612'`) |
+| `cvv` | string | ✅ | CVV kodu (RSA ile şifrelenecek) |
+| `requestReferenceNumber` | string | ✅ | İstek referans numarası (benzersiz) |
+| `deviceFingerPrint` | string | ❌ | Cihaz parmak izi (opsiyonel, boş string olabilir) |
+
+**Örnek:**
+
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.AddCard({
+  accountKey: '905437892802',
+  accountKeyType: 'Msisdn',
+  userId: 'USER_123',
+  accountAliasName: 'My Card',
+  cardHolderName: 'John Doe',
+  cardNumber: '5528790000000008',
+  expiryDate: '2612', // MMYY formatında
+  cvv: '123',
+  requestReferenceNumber: '111111111111',
+  deviceFingerPrint: ''
 });
 ```
 
-### Parametreler
+**Response (OTP Gerekli):**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (zorunlu) |
-| `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu) |
-| `accountKeyType` | string | Account key tipi: "Msisdn" (zorunlu) |
-| `userId` | string | Kullanıcı ID (zorunlu, maksimum 101 karakter) |
-| `accountAliasName` | string | Kart için alias adı (zorunlu, maksimum 41 karakter) |
-| `cardHolderName` | string | Kart sahibi adı (zorunlu, maksimum 51 karakter, kart numarası içeremez) |
-| `cardNumber` | string | Şifrelenmiş kart numarası (RSA ile şifrelenmiş, zorunlu) |
-| `expiryDate` | string | Son kullanma tarihi (YYMM formatında, örn: "2612", zorunlu) |
-| `cvv` | string | Şifrelenmiş CVV kodu (RSA ile şifrelenmiş, zorunlu) |
-| `requestReferenceNumber` | string | İstek referans numarası (benzersiz, zorunlu) |
-| `deviceFingerPrint` | string | Cihaz parmak izi (opsiyonel, boş string olabilir) |
-
-### Başarılı Response (OTP Gerekli)
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "ACTION_REQUIRED",
-  "source": "MASTERPASS",
-  "actionType": "BANK_OTP",
-  "message": "Bank OTP verification is required. Please enter the OTP code sent by your bank. OTP verification is handled by merchant backend.",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "retrievalReferenceNumber": "111111111111",
-    "providerMeta": {
-      "httpStatus": 202,
-      "responseCode": "5001"
-    }
+  success: true,
+  status: 'ACTION_REQUIRED',
+  source: 'MASTERPASS',
+  actionType: 'BANK_OTP',
+  message: 'Bank OTP verification is required...',
+  data: {
+    sessionId: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    retrievalReferenceNumber: '111111111111'
   }
 }
 ```
 
-### Başarısız (Kart Zaten Kayıtlı)
-
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "MASTERPASS",
-  "message": "This card is already registered. Please try adding a different card.",
-  "errorCode": "4004",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "errorCode": "CARD_ALREADY_EXISTS",
-    "errorDetails": [ ... ]
-  }
-}
-```
-
----
-
-## PaywallJsSdk.providers.masterpass.deleteCard() <a id="delete-card"></a>
-
-Kayıtlı kartı siler.
-
-### Request
-
-```javascript
-await PaywallJsSdk.providers.masterpass.deleteCard({
-  accountKey: "5555555555",
-  cardAlias: "MyCard"
-});
-```
-
-### Parametreler
-
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (zorunlu) |
-| `cardAlias` | string | Silinecek kartın alias'ı (zorunlu) |
-
-### Başarılı Response
-
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "Card deleted successfully",
-  "data": {
-    "success": true,
-    "providerMeta": {
-      "httpStatus": 200,
-      "responseCode": "200"
-    }
-  }
-}
-```
-
----
-
-## PaywallJsSdk.providers.masterpass.accessAccount() <a id="access-account"></a>
+##### `PaywallJsSdk.providers.masterpass.getCardList(params)`
 
 Kayıtlı kartları listeler.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.providers.masterpass.accessAccount({
-  accountKey: "5555555555",
-  accountKeyType: "Msisdn",
-  userId: "user-12345"
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key |
+| `accountKeyType` | string | ✅ | Account key tipi: `'Msisdn'` |
+| `userId` | string | ✅ | Kullanıcı ID |
+
+**Örnek:**
+
+```typescript
+const cards = await PaywallJsSdk.providers.masterpass.getCardList({
+  accountKey: '905437892802',
+  accountKeyType: 'Msisdn',
+  userId: 'USER_123'
 });
 ```
 
-### Parametreler
+**Response:**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu, maksimum 21 karakter) |
-| `accountKeyType` | string | Account key tipi: "Msisdn" (zorunlu) |
-| `userId` | string | Kullanıcı ID (zorunlu, maksimum 101 karakter) |
-
-### Başarılı Response
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "Cards fetched successfully",
-  "data": {
-    "cards": [
+  success: true,
+  status: 'SUCCESS',
+  source: 'MASTERPASS',
+  message: 'Cards fetched successfully',
+  data: {
+    cards: [
       {
-        "cardId": 1111111111111,
-        "cardAlias": "MyCard",
-        "cardState": "Activated",
-        "maskedCardNumber": "540667******0001",
-        "uniqueCardNumber": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "cardType": "Credit",
-        "productName": "Maximum",
-        "cardBin": "540667",
-        "cardIssuerIcaNumber": "1111",
-        "cardValidationType": "OTP",
-        "cardAuthorityUrl": "./assets/icon/Mastercard.svg",
-        "isDefaultCard": false,
-        "expireSoon": false,
-        "isExpired": false,
-        "isEightDigit": false,
-        "isMasterpassMember": true,
-        "isCardCreditOrSupportedDebit": true,
-        "isIssuerOtpSupported": true
+        cardId: 1111111111111,
+        cardAlias: 'MyCard',
+        cardState: 'Activated',
+        maskedCardNumber: '540667******0001',
+        uniqueCardNumber: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        cardType: 'Credit',
+        productName: 'Maximum',
+        cardBin: '540667',
+        cardIssuerIcaNumber: '1111',
+        cardValidationType: 'OTP',
+        isDefaultCard: false,
+        isExpired: false,
+        isMasterpassMember: true
       }
     ],
-    "accountInformation": {
-      "isAccountLinked": true
-    },
-    "providerMeta": {
-      "httpStatus": 200,
-      "responseCode": "0000"
+    accountInformation: {
+      isAccountLinked: true
     }
   }
 }
 ```
 
-### Başarısız (Hesap Bulunamadı)
+##### `PaywallJsSdk.providers.masterpass.removeCard(params)`
 
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "MASTERPASS",
-  "message": "Hesap bulunamadı.",
-  "errorCode": "ACCOUNT_NOT_FOUND",
-  "data": {
-    "providerMeta": {
-      "httpStatus": 404,
-      "responseCode": "ACCOUNT_NOT_FOUND"
-    }
-  }
-}
+Kayıtlı kartı siler.
+
+**Parametreler:**
+
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key |
+| `cardAlias` | string | ✅ | Silinecek kartın alias'ı |
+
+**Örnek:**
+
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.removeCard({
+  accountKey: '905437892802',
+  cardAlias: 'MyCard'
+});
 ```
 
-### Action Required Response (Merchant Link Gerekli)
+#### Merchant Link İşlemleri
 
-```json
-{
-  "success": true,
-  "status": "ACTION_REQUIRED",
-  "source": "MASTERPASS",
-  "actionType": "MERCHANT_LINK_REQUIRED",
-  "message": "Account is not linked to merchant",
-  "data": {
-    "providerMeta": {
-      "httpStatus": 404,
-      "responseCode": "ACCOUNT_NOT_LINKED_TO_MERCHANT"
-    }
-  }
-}
+##### `PaywallJsSdk.providers.masterpass.accountAccess(params)`
+
+Hesap erişimi sağlar ve kayıtlı kartları listeler. **userId ZORUNLU**.
+
+**Parametreler:**
+
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key |
+| `accountKeyType` | string | ✅ | Account key tipi: `'Msisdn'` |
+| `userId` | string | ✅ | Kullanıcı ID (ZORUNLU) |
+
+**Örnek:**
+
+```typescript
+const account = await PaywallJsSdk.providers.masterpass.accountAccess({
+  accountKey: '905437892802',
+  accountKeyType: 'Msisdn',
+  userId: 'USER_123'
+});
 ```
 
----
-
-## PaywallJsSdk.providers.masterpass.merchantLink() <a id="merchant-link"></a>
+##### `PaywallJsSdk.providers.masterpass.merchantLink(params)`
 
 Kullanıcıyı merchant'a bağlar.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.providers.masterpass.merchantLink({
-  accountKey: "5555555555"
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key |
+
+**Örnek:**
+
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.merchantLink({
+  accountKey: '905437892802'
 });
 ```
 
-### Parametreler
+**Response (OTP Gerekli):**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (zorunlu) |
-
-### Başarılı Response
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "Merchant link successful",
-  "data": {
-    "linked": true
+  success: true,
+  status: 'ACTION_REQUIRED',
+  source: 'MASTERPASS',
+  actionType: 'BANK_OTP',
+  message: 'Bank OTP verification is required...',
+  data: {
+    token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
   }
 }
 ```
 
-### Action Required Response (OTP Gerekli)
+##### `PaywallJsSdk.providers.masterpass.merchantUnlink(params)`
 
-```json
-{
-  "success": true,
-  "status": "ACTION_REQUIRED",
-  "source": "MASTERPASS",
-  "actionType": "BANK_OTP",
-  "message": "Bank OTP verification is required. Please enter the OTP code sent by your bank. OTP verification is handled by merchant backend.",
-  "data": {
-    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "providerMeta": {
-      "httpStatus": 202,
-      "responseCode": "5001"
-    }
-  }
-}
+Merchant bağlantısını kaldırır.
+
+**Parametreler:**
+
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `accountKey` | string | ✅ | Kullanıcı account key |
+
+**Örnek:**
+
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.merchantUnlink({
+  accountKey: '905437892802'
+});
 ```
 
-### Başarısız (Zaten Linkli)
-
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "MASTERPASS",
-  "message": "User ID is already in use. Please use a different user ID.",
-  "errorCode": "4005",
-  "data": {
-    "providerMeta": {
-      "httpStatus": 403,
-      "responseCode": "4005"
-    }
-  }
-}
-```
-
----
-
-## PaywallJsSdk.providers.masterpass.verifyOtp() <a id="verify-otp"></a>
+##### `PaywallJsSdk.providers.masterpass.verifyOtp(params)`
 
 OTP kodunu doğrular.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.providers.masterpass.verifyOtp({
-  otpCode: "123456"
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `otpCode` | string | ✅ | OTP kodu |
+
+**Örnek:**
+
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.verifyOtp({
+  otpCode: '123456'
 });
 ```
 
-### Parametreler
+**Response:**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `otpCode` | string | OTP kodu (zorunlu) |
-
-### Başarılı Response
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "OTP verified successfully",
-  "data": {
-    "isVerified": true,
-    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "cardUniqueNumber": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-    "retrievalReferenceNumber": "222222222222",
-    "providerMeta": {
-      "httpStatus": 200,
-      "responseCode": "0000"
-    }
+  success: true,
+  status: 'SUCCESS',
+  source: 'MASTERPASS',
+  message: 'OTP verified successfully',
+  data: {
+    isVerified: true,
+    token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    cardUniqueNumber: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    retrievalReferenceNumber: '222222222222'
   }
 }
 ```
 
----
-
-## PaywallJsSdk.providers.masterpass.resendOtp() <a id="resend-otp"></a>
+##### `PaywallJsSdk.providers.masterpass.resendOtp()`
 
 OTP kodunu yeniden gönderir.
 
-### Request
+**Parametreler:**
 
-```javascript
-await PaywallJsSdk.providers.masterpass.resendOtp();
-```
+Bu fonksiyon parametre almaz. OTP token'ı session state'inden otomatik alınır.
 
-### Parametreler
+**Örnek:**
 
-Bu fonksiyon parametre almaz.
-
-### Başarılı Response
-
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "OTP resent successfully",
-  "data": {
-    "resent": true
-  }
-}
+```typescript
+const result = await PaywallJsSdk.providers.masterpass.resendOtp();
 ```
 
 ---
 
-## PaywallJsSdk.providers.masterpass.unlinkMerchant() <a id="unlink-merchant"></a>
+### 4.3. Payment İşlemleri
 
-Kullanıcıyı merchant'tan ayırır.
+#### Payment Init
 
-### Request
+##### `PaywallJsSdk.payment.init(params)`
 
-```javascript
-await PaywallJsSdk.providers.masterpass.unlinkMerchant({
-  accountKey: "5555555555"
-});
-```
+Ödeme işlemini başlatır. Manuel kart veya kayıtlı kart ile ödeme yapılabilir.
 
-### Parametreler
+**Parametreler:**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (zorunlu) |
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `sessionId` | string | ✅ | Session ID (startSession'dan alınan) |
+| `paymentSource` | string | ✅ | Ödeme kaynağı: `'MANUAL_CARD'` veya `'REGISTERED_CARD'` |
+| `paymentDetail` | object | ✅ | Ödeme detayları |
+| `paymentDetail.amount` | number | ✅ | Ödeme tutarı |
+| `paymentDetail.currencyId` | number | ✅ | Para birimi ID (949: TRY) |
+| `paymentDetail.merchantUniqueCode` | string | ✅ | Benzersiz sipariş kodu |
+| `paymentDetail.trackingCode` | string | ✅ | Takip kodu |
+| `paymentDetail.successUrl` | string | ✅ | Başarı URL'i |
+| `paymentDetail.failUrl` | string | ✅ | Hata URL'i |
+| `paymentDetail.clientIp` | string | ✅ | İstemci IP adresi |
+| `paymentDetail.installment` | number | ✅ | Taksit sayısı |
+| `paymentDetail.channelId` | number | ❌ | Kanal ID |
+| `paymentDetail.tagId` | number | ❌ | Tag ID |
+| `card` | object | ✅ | Paywall'a gönderilecek masked kart bilgileri |
+| `card.cardBin` | string | ✅ | Kart BIN (ilk 6 hane) |
+| `card.cardMasked` | string | ✅ | Maskelenmiş kart numarası |
+| `card.ownerName` | string | ✅ | Kart sahibi adı |
+| `card.cardAlias` | string | ❌ | Kayıtlı kart alias'ı (kayıtlı kart için) |
+| `cardData` | object | ✅ | Masterpass'e gönderilecek hassas kart bilgileri |
+| `cardData.cardNumber` | string | ❌ | Kart numarası (manuel kart için) |
+| `cardData.expiryDate` | string | ❌ | Son kullanma tarihi (MMYY formatında, manuel kart için) |
+| `cardData.cvv` | string | ❌ | CVV kodu (manuel kart için) |
+| `cardData.cardAlias` | string | ❌ | Kayıtlı kart alias'ı (kayıtlı kart için) |
+| `customer` | object | ❌ | Müşteri bilgileri |
+| `products` | array | ✅ | Ürün listesi |
 
-### Başarılı Response
+**Örnek (Manuel Kart):**
 
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "MASTERPASS",
-  "message": "Merchant unlinked successfully",
-  "data": {
-    "unlinked": true
-  }
-}
-```
-
----
-
-## PaywallJsSdk.payment.init() <a id="payment-init"></a>
-
-Ödeme işlemini başlatır. Manuel kart veya kayıtlı kart ile ödeme yapılabilir. Bu fonksiyon önce Paywall API'ye ödeme kaydı oluşturur, sonra Masterpass SDK'ya ödeme isteği gönderir.
-
-### Request (Manuel Kart)
-
-```javascript
-await PaywallJsSdk.payment.init({
-  amount: 100.00,
-  currencyId: 1,
-  merchantUniqueCode: "MERCHANT-1111111111111",
-  trackingCode: "TRACK-1111111111111",
-  successUrl: "https://merchant.com/success",
-  failUrl: "https://merchant.com/fail",
-  clientIp: "192.168.1.1",
-  installment: 1,
-  card: {
-    cardBin: "540667",
-    cardMasked: "540667******0001",
-    ownerName: "John Doe"
+```typescript
+const payment = await PaywallJsSdk.payment.init({
+  sessionId: session.data.sessionId,
+  paymentSource: 'MANUAL_CARD',
+  paymentDetail: {
+    amount: 100.00,
+    currencyId: 949,
+    merchantUniqueCode: 'ORDER-001',
+    trackingCode: 'TRACK-001',
+    successUrl: 'https://merchant.com/success',
+    failUrl: 'https://merchant.com/fail',
+    clientIp: '192.168.1.1',
+    installment: 1
   },
-  customer: {
-    fullName: "",
-    phone: "",
-    email: "",
-    identityNumber: ""
+  card: {
+    cardBin: '540667',
+    cardMasked: '540667******0001',
+    ownerName: 'John Doe'
+  },
+  cardData: {
+    cardNumber: '5528790000000008',
+    expiryDate: '2612',
+    cvv: '123'
   },
   products: [
     {
-      productId: "TEST-PRODUCT-001",
-      productCode: "TEST-PRODUCT-001",
-      productName: "Test Product",
-      productAmount: 100,
-      quantity: 1,
-      price: 100,
-      totalPrice: 100,
-      vatRate: 0,
-      vatAmount: 0
+      productId: 'PROD-001',
+      productName: 'Product 1',
+      productAmount: 100.00
     }
   ]
 });
 ```
 
-### Request (Kayıtlı Kart)
+**Response:**
 
-```javascript
-await PaywallJsSdk.payment.init({
-  amount: 100.00,
-  currencyId: 1,
-  merchantUniqueCode: "MERCHANT-2222222222222",
-  trackingCode: "TRACK-2222222222222",
-  successUrl: "https://merchant.com/success",
-  failUrl: "https://merchant.com/fail",
-  clientIp: "192.168.1.1",
-  installment: 1,
-  card: {
-    cardAlias: "MyCard",
-    cardBin: "540667",
-    cardMasked: "540667******0001",
-    ownerName: "John Doe"
+```typescript
+{
+  success: true,
+  status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED',
+  source: 'PAYWALL' | 'MASTERPASS',
+  actionType?: 'BANK_OTP' | '3D',
+  message?: string,
+  data: {
+    sessionId: string,
+    status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED',
+    actionType?: 'BANK_OTP' | '3D',
+    token?: string, // OTP için token
+    redirectUrl?: string, // 3D Secure için URL
+    retrievalReferenceNumber?: string,
+    paymentId?: number,
+    masterpassPaymentId?: string,
+    activityId?: number,
+    uniqueCode?: string,
+    merchantUniqueCode?: string
+  }
+}
+```
+
+#### Register and Purchase (YENİ ÖZELLİK)
+
+##### `PaywallJsSdk.payment.registerAndPurchase(params)`
+
+Kart kaydı ve ödeme işlemini tek seferde yapar. Bu fonksiyon hem kart kaydı hem de ödeme işlemini gerçekleştirir.
+
+**ÖNEMLİ ÖZELLİKLER:**
+
+- Hem kart kaydı hem de ödeme işlemini tek seferde yapar
+- Paywall init endpoint'ine istek atar (`POST /api/paywall/masterpass/by/sdk/payment/init`)
+- Paywall'dan gelen `MasterpassRequestBody` içindeki placeholder'ları gerçek kart bilgileriyle değiştirir
+- Masterpass SDK'ya `registerAndPurchase` çağrısı yapar
+- `markAsStarted` endpoint'ine bildirim gönderir
+- **cardAlias ZORUNLU** - Kart kaydı için alias gereklidir
+- Kart bilgileri RSA ile şifrelenir ve sadece Masterpass SDK'ya gönderilir (Paywall'a gitmez)
+
+**Parametreler:**
+
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `sessionId` | string | ✅ | Masterpass session ID |
+| `accountKey` | string | ✅ | Kullanıcı telefon numarası veya account key |
+| `accountKeyType` | string | ✅ | Genellikle `'Msisdn'` |
+| `merchantUserId` | string | ✅ | Merchant'ın kullanıcı ID'si |
+| `paymentDetail` | object | ✅ | Ödeme detayları |
+| `paymentDetail.amount` | number | ✅ | Ödeme tutarı (kuruş cinsinden) |
+| `paymentDetail.currencyId` | number | ✅ | Para birimi ID (949: TRY) |
+| `paymentDetail.merchantUniqueCode` | string | ✅ | Benzersiz sipariş kodu |
+| `paymentDetail.trackingCode` | string | ✅ | Takip kodu |
+| `paymentDetail.successUrl` | string | ✅ | Başarı URL'i |
+| `paymentDetail.failUrl` | string | ✅ | Hata URL'i |
+| `paymentDetail.clientIp` | string | ✅ | İstemci IP adresi |
+| `paymentDetail.installment` | number | ✅ | Taksit sayısı |
+| `paymentDetail.channelId` | number | ❌ | Kanal ID |
+| `paymentDetail.tagId` | number | ❌ | Tag ID |
+| `cardData` | object | ✅ | Kart bilgileri |
+| `cardData.cardNumber` | string | ✅ | Gerçek PAN (ZORUNLU) |
+| `cardData.cardHolderName` | string | ✅ | Kart sahibi adı (ZORUNLU) |
+| `cardData.expiryDate` | string | ✅ | MMYY formatında (ZORUNLU) |
+| `cardData.cvv` | string | ✅ | CVV (ZORUNLU) |
+| `cardData.cardAlias` | string | ✅ | Kart alias'ı (ZORUNLU - registerAndPurchase için) |
+| `products` | array | ✅ | Ürün listesi |
+| `products[].productId` | string | ✅ | Ürün ID |
+| `products[].productName` | string | ✅ | Ürün adı |
+| `products[].productCategory` | string | ❌ | Ürün kategorisi |
+| `products[].productDescription` | string | ❌ | Ürün açıklaması |
+| `products[].productAmount` | number | ✅ | Ürün tutarı |
+| `customer` | object | ❌ | Müşteri bilgileri |
+| `customer.fullName` | string | ❌ | Müşteri tam adı |
+| `customer.phone` | string | ❌ | Müşteri telefonu |
+| `customer.customerId` | string | ❌ | Müşteri ID |
+| `customer.email` | string | ❌ | Müşteri e-posta |
+| `customer.identityNumber` | string | ❌ | Müşteri TC kimlik no |
+| `force3D` | boolean | ❌ | 3D Secure zorunlu mu? (default: `false`) |
+| `secure3DModel` | string | ❌ | `'3D'` veya `'NON_SECURE'` |
+| `isMsisdnValidatedByMerchant` | boolean | ❌ | Telefon merchant tarafından doğrulandı mı? (default: `true`) |
+
+**Response:**
+
+```typescript
+{
+  success: boolean,
+  status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED',
+  actionType?: 'BANK_OTP' | '3D',
+  token?: string, // OTP için token
+  redirectUrl?: string, // 3D Secure için URL
+  retrievalReferenceNumber?: string, // İşlem referans numarası
+  message?: string,
+  data: {
+    sessionId: string,
+    status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED',
+    actionType?: 'BANK_OTP' | '3D',
+    token?: string,
+    redirectUrl?: string,
+    retrievalReferenceNumber?: string,
+    paymentId?: number,
+    masterpassPaymentId?: string,
+    activityId?: number,
+    uniqueCode?: string,
+    merchantUniqueCode?: string
   },
-  customer: {
-    fullName: "",
-    phone: "",
-    email: "",
-    identityNumber: ""
+  providerMeta?: {
+    httpStatus?: number,
+    responseCode?: string,
+    raw?: any
+  }
+}
+```
+
+**Response Code Handling:**
+
+- `responseCode 0000` → `SUCCESS` (Ödeme başarılı)
+- `responseCode 5001` → `ACTION_REQUIRED`, `actionType: 'BANK_OTP'` (OTP doğrulama gerekiyor)
+- `responseCode 5010` → `ACTION_REQUIRED`, `actionType: '3D'` (3D Secure doğrulama gerekiyor)
+- Diğer kodlar → `FAILED`
+
+**Kullanım Örneği:**
+
+```typescript
+// 1. SDK'yı initialize et
+await PaywallJsSdk.Init({
+  environment: 'test',
+  token: 'TOKEN_FROM_MERCHANT_BACKEND'
+});
+
+// 2. Session başlat
+const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+  referenceCode: Date.now().toString(),
+  userId: 'USER_123',
+  userPhone: '905437892802'
+});
+
+// 3. Register and Purchase
+const result = await PaywallJsSdk.payment.registerAndPurchase({
+  sessionId: session.data.sessionId,
+  accountKey: '905437892802',
+  accountKeyType: 'Msisdn',
+  merchantUserId: 'USER_123',
+  paymentDetail: {
+    amount: 10000, // 100.00 TRY (kuruş cinsinden)
+    currencyId: 949, // TRY
+    merchantUniqueCode: 'ORDER-001',
+    trackingCode: 'TRACK-001',
+    successUrl: 'https://merchant.com/success',
+    failUrl: 'https://merchant.com/fail',
+    clientIp: '192.168.1.1',
+    installment: 1
+  },
+  cardData: {
+    cardNumber: '5528790000000008',
+    cardHolderName: 'John Doe',
+    expiryDate: '2612', // MMYY formatında
+    cvv: '123',
+    cardAlias: 'My Card' // ZORUNLU
   },
   products: [
     {
-      productId: "TEST-PRODUCT-001",
-      productCode: "TEST-PRODUCT-001",
-      productName: "Test Product",
-      productAmount: 100,
-      quantity: 1,
-      price: 100,
-      totalPrice: 100,
-      vatRate: 0,
-      vatAmount: 0
+      productId: 'PROD-001',
+      productName: 'Product 1',
+      productAmount: 10000
     }
-  ]
+  ],
+  customer: {
+    fullName: 'John Doe',
+    email: 'john@example.com',
+    phone: '905437892802'
+  }
 });
+
+// 4. Response handling
+if (result.success) {
+  if (result.data.status === 'SUCCESS') {
+    console.log('Ödeme başarılı!');
+  } else if (result.data.status === 'ACTION_REQUIRED') {
+    if (result.data.actionType === 'BANK_OTP') {
+      // OTP doğrulama ekranı göster
+      // Token'ı merchant backend'e gönder
+      console.log('OTP token:', result.data.token);
+    } else if (result.data.actionType === '3D') {
+      // 3D Secure redirect
+      window.location.href = result.data.redirectUrl;
+    }
+  }
+} else {
+  console.error('Ödeme başarısız:', result.message);
+}
 ```
 
-### Parametreler
+---
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `amount` | number | Ödeme tutarı (zorunlu) |
-| `currencyId` | number | Para birimi ID (1: TRY, zorunlu) |
-| `merchantUniqueCode` | string | Benzersiz sipariş kodu (zorunlu) |
-| `trackingCode` | string | Takip kodu (zorunlu) |
-| `successUrl` | string | Başarı URL'i (zorunlu) |
-| `failUrl` | string | Hata URL'i (zorunlu) |
-| `clientIp` | string | İstemci IP adresi (zorunlu) |
-| `installment` | number | Taksit sayısı (zorunlu) |
-| `channelId` | number | Kanal ID (opsiyonel) |
-| `tagId` | number | Tag ID (opsiyonel) |
-| `card` | object | Kart bilgileri (zorunlu) |
-| `card.cardBin` | string | Kart BIN (ilk 6 hane, zorunlu) |
-| `card.cardMasked` | string | Maskelenmiş kart numarası (zorunlu) |
-| `card.ownerName` | string | Kart sahibi adı (zorunlu) |
-| `card.cardAlias` | string | Kayıtlı kart alias'ı (kayıtlı kart için, manuel kart için boş) |
-| `card.isSavedCard` | boolean | Kayıtlı kart mı? (SDK otomatik belirler) |
-| `customer` | object | Müşteri bilgileri (opsiyonel) |
-| `customer.fullName` | string | Müşteri tam adı (opsiyonel) |
-| `customer.phone` | string | Müşteri telefonu (opsiyonel) |
-| `customer.email` | string | Müşteri e-posta (opsiyonel) |
-| `customer.identityNumber` | string | Müşteri TC kimlik no (opsiyonel) |
-| `products` | array | Ürün listesi (zorunlu) |
-| `products[].productId` | string | Ürün ID (zorunlu) |
-| `products[].productCode` | string | Ürün kodu (zorunlu) |
-| `products[].productName` | string | Ürün adı (zorunlu) |
-| `products[].productAmount` | number | Ürün tutarı (zorunlu) |
-| `products[].quantity` | number | Ürün miktarı (zorunlu) |
-| `products[].price` | number | Ürün birim fiyatı (zorunlu) |
-| `products[].totalPrice` | number | Ürün toplam fiyatı (zorunlu) |
-| `products[].vatRate` | number | KDV oranı (opsiyonel) |
-| `products[].vatAmount` | number | KDV tutarı (opsiyonel) |
+## 5. Response Formatları
 
-### Başarılı Response (NonSecure Ödeme)
+### 5.1. SdkResponse
 
-```json
+Tüm SDK fonksiyonları `SdkResponse<T>` formatında response döner:
+
+```typescript
+interface SdkResponse<T> {
+  success: boolean;
+  status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED';
+  source: 'SDK' | 'PAYWALL' | 'MASTERPASS';
+  message?: string;
+  errorCode?: string;
+  actionType?: 'BANK_OTP' | '3D' | 'MASTERPASS_OTP' | 'MERCHANT_LINK_REQUIRED';
+  data?: T;
+  providerMeta?: {
+    httpStatus?: number;
+    responseCode?: string;
+    raw?: any;
+  };
+}
+```
+
+### 5.2. OTP Response
+
+OTP gerektiren işlemlerde:
+
+```typescript
 {
-  "success": true,
-  "status": "SUCCESS",
-  "source": "PAYWALL",
-  "message": "Payment completed successfully.",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "status": "SUCCESS",
-    "message": "Payment completed successfully.",
-    "nextActionHint": "Please commit the payment.",
-    "retrievalReferenceNumber": "333333333333",
-    "successUrl": "https://merchant.com/success",
-    "failUrl": "https://merchant.com/fail",
-    "paymentId": 11111111,
-    "masterpassPaymentId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
-    "activityId": 22222222,
-    "uniqueCode": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "merchantUniqueCode": "MERCHANT-3333333333333",
-    "providerMeta": {
-      "httpStatus": 200,
-      "responseCode": "0000",
-      "raw": {
-        "statusCode": 200,
-        "response": {
-          "version": null,
-          "buildId": "1",
-          "statusCode": 200,
-          "message": "OK",
-          "correlationId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-          "requestId": null,
-          "result": {
-            "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-            "retrievalReferenceNumber": "333333333333",
-            "maskedNumber": "540667******0001",
-            "terminalGroupId": "11111111111111111111111",
-            "url3d": null,
-            "url3dSuccess": null,
-            "url3dFail": null,
-            "responseCode": "0000",
-            "description": "Yetkilendirme gerekli değil"
-          },
-          "exception": null
-        }
-      }
-    }
+  success: false,
+  status: 'ACTION_REQUIRED',
+  actionType: 'BANK_OTP',
+  data: {
+    token: string; // OTP doğrulama için token
+    isVerified: false; // OTP henüz doğrulanmadı
   }
 }
 ```
 
-**Not:** NonSecure ödeme başarılı olduğunda, merchant backend'de ödemenin durumunu güncellemek için mark as started endpoint'ine istek atılmalıdır.
+OTP doğrulandıktan sonra:
 
-### Action Required Response (3D Secure)
-
-```json
+```typescript
 {
-  "success": true,
-  "status": "ACTION_REQUIRED",
-  "source": "MASTERPASS",
-  "actionType": "3D",
-  "message": "3D Secure verification is required. You will be redirected to the 3D Secure screen.",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "status": "ACTION_REQUIRED",
-    "actionType": "3D",
-    "message": "3D Secure verification is required. You will be redirected to the 3D Secure screen.",
-    "retrievalReferenceNumber": "444444444444",
-    "redirectUrl": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-acs-form?token=hhhhhhhh-hhhh-hhhh-hhhh-hhhhhhhhhhhh&returnUrl=https://dev-payment-agent.itspaywall.com/masterpass/vposcallback?uniqueCode=iiiiiiii-iiii-iiii-iiii-iiiiiiiiiiii",
-    "successUrl": "https://merchant.com/success",
-    "failUrl": "https://merchant.com/fail",
-    "paymentId": 33333333,
-    "masterpassPaymentId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "activityId": 44444444,
-    "uniqueCode": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "merchantUniqueCode": "MERCHANT-4444444444444",
-    "maskedCard": {
-      "bin": "540667",
-      "last4": "0001",
-      "masked": "540667******0001"
-    },
-    "providerMeta": {
-      "httpStatus": 202,
-      "responseCode": "5010",
-      "raw": {
-        "statusCode": 202,
-        "response": {
-          "version": null,
-          "buildId": "1",
-          "statusCode": 202,
-          "message": "Accepted",
-          "correlationId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-          "requestId": null,
-          "result": {
-            "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-            "retrievalReferenceNumber": "444444444444",
-            "maskedNumber": "540667******0001",
-            "terminalGroupId": "11111111111111111111111",
-            "url3d": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-acs-form?token=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-            "url3dSuccess": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-client-success",
-            "url3dFail": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-client-error",
-            "responseCode": "5010",
-            "description": "Telefonunuza gelen tek kullanımlık şifreyi girerek işleminizi tamamlayınız"
-          },
-          "exception": null,
-          "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-          "url3d": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-acs-form?token=mmmmmmmm-mmmm-mmmm-mmmm-mmmmmmmmmmmm",
-          "responseCode": "5010"
-        }
-      }
-    }
+  success: true,
+  status: 'SUCCESS',
+  data: {
+    isVerified: true; // OTP doğrulandı
+    cardUniqueNumber?: string;
+    retrievalReferenceNumber?: string;
   }
 }
 ```
 
-**Not:** 3D Secure akışında:
-1. `redirectUrl`'e yönlendirme yapılmalıdır
-2. Ödeme durumunu güncellemek için mark as started endpoint'ine istek atılmalıdır
-3. 3D doğrulama tamamlandıktan sonra Paywall callback URL'ine yönlendirilir
+### 5.3. 3D Secure Response
 
----
-
-## Ödeme İşlem Akışı
-
-### 1. Paywall API'ye Ödeme Kaydı Oluşturma
-
-`payment.init()` fonksiyonu çağrıldığında, SDK önce Paywall API'ye ödeme kaydı oluşturur.
-
-**Request (Paywall API'ye):**
-```json
+```typescript
 {
-  "SessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "Force3D": false,
-  "PaymentDetail": {
-    "Amount": 100,
-    "CurrencyId": 1,
-    "MerchantUniqueCode": "MERCHANT-5555555555555",
-    "TrackingCode": "TRACK-5555555555555",
-    "MerchantSuccessBackUrl": "https://merchant.com/success",
-    "MerchantFailBackUrl": "https://merchant.com/fail",
-    "ClientIP": "192.168.1.1",
-    "Installment": 1,
-    "ChannelId": 0,
-    "TagId": 0
-  },
-  "Card": {
-    "IsSavedCard": false,
-    "CardBin": "540667",
-    "CardMasked": "540667******0001",
-    "OwnerName": "John Doe"
-  },
-  "Customer": {
-    "fullName": "",
-    "phone": "",
-    "email": "",
-    "identityNumber": ""
-  },
-  "Products": [
-    {
-      "productId": "TEST-PRODUCT-001",
-      "productCode": "TEST-PRODUCT-001",
-      "productName": "Test Product",
-      "productAmount": 100,
-      "quantity": 1,
-      "price": 100,
-      "totalPrice": 100,
-      "vatRate": 0,
-      "vatAmount": 0
-    }
-  ]
-}
-```
-
-**Response (Paywall API'den):**
-```json
-{
-  "ErrorCodeType": 1,
-  "ErrorMessage": null,
-  "ErrorCode": 0,
-  "Result": true,
-  "Message": "Success",
-  "Body": {
-    "Session": {
-      "SessionRenewed": false,
-      "SessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-    },
-    "Masterpass": {
-      "Paywall": {
-        "MasterpassPaymentId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-        "MasterpassReturnQueryString": "&returnUrl=https://dev-payment-agent.itspaywall.com/masterpass/vposcallback?uniqueCode=oooooooo-oooo-oooo-oooo-oooooooooooo",
-        "PaymentId": 55555555,
-        "ActivityId": 66666666,
-        "UniqueCode": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-        "MerchantUniqueKey": "MERCHANT-6666666666666",
-        "PaymentGatewayId": 1111,
-        "PaymentGatewayName": "MasterPassIyzico",
-        "PaymentGatewayProviderName": "Masterpass",
-        "Products": [ ... ]
-      },
-      "MasterpassRequestBody": { ... }
-    }
+  success: false,
+  status: 'ACTION_REQUIRED',
+  actionType: '3D',
+  data: {
+    redirectUrl: string; // 3D Secure form URL'i
+    successUrl?: string;
+    failUrl?: string;
   }
 }
 ```
 
-### 2. Masterpass SDK'ya Ödeme İsteği
+---
 
-Paywall API'den başarılı response alındıktan sonra, SDK Masterpass SDK'ya ödeme isteği gönderir.
+## 6. Güvenlik ve PCI-DSS Uyumluluğu
 
-**Request (Masterpass SDK'ya - Manuel Kart):**
-```json
-{
-  "accountKey": "5555555555",
-  "paymentType": "Sale",
-  "requestReferenceNo": "777777777777",
-  "cardNumber": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq...",
-  "cardHolderName": "John Doe",
-  "expiryDate": "2612",
-  "cvc": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr...",
-  "installmentCount": 1,
-  "amount": 10000,
-  "currencyCode": "TRY",
-  "orderNo": "ssssssssssssssssssssssssssssssssssssssss",
-  "terminalGroupId": "11111111111111111111111",
-  "authenticationMethod": "None",
-  "secure3DModel": "NotDefined",
-  "orderDetails": { ... },
-  "orderProductsDetails": { ... },
-  "billDetails": { ... },
-  "deliveryDetails": { ... },
-  "buyerDetails": { ... },
-  "otherDetails": { ... },
-  "merchantId": "34878516",
-  "sdkVersion": "1.0.4",
-  "sourceChannel": "Web"
-}
-```
+### 6.1. Kart Bilgileri
 
-**Request (Masterpass SDK'ya - Kayıtlı Kart):**
-```json
-{
-  "accountKey": "5555555555",
-  "paymentType": "Sale",
-  "requestReferenceNo": "888888888888",
-  "cardAlias": "MyCard",
-  "cvc": "",
-  "installmentCount": 1,
-  "amount": 10000,
-  "currencyCode": "TRY",
-  "orderNo": "tttttttttttttttttttttttttttttttttttttttt",
-  "terminalGroupId": "11111111111111111111111",
-  "authenticationMethod": "None",
-  "secure3DModel": "NotDefined",
-  "orderDetails": { ... },
-  "orderProductsDetails": { ... },
-  "billDetails": { ... },
-  "deliveryDetails": { ... },
-  "buyerDetails": { ... },
-  "otherDetails": { ... },
-  "merchantId": "34878516",
-  "sdkVersion": "1.0.4",
-  "sourceChannel": "Web"
-}
-```
+- **Kart bilgileri (PAN, CVV) ASLA Paywall backend'e gönderilmez**
+- Kart bilgileri RSA ile şifrelenir ve sadece Masterpass SDK'ya iletilir
+- SDK state'inde, loglarda veya storage'da kart bilgileri tutulmaz
+- Kart bilgileri sadece local function scope içinde yaşar
 
-### 3. Ödeme Durumunu Güncelleme (Mark as Started)
+### 6.2. Token Yönetimi
 
-Ödeme başlatıldıktan sonra, merchant backend'de ödemenin durumunu güncellemek için Paywall API'ye mark as started isteği gönderilmelidir.
+- SDK token üretmez, refresh etmez
+- Token merchant backend'den alınmalıdır
+- Merchant secret key SDK'ya verilmez
 
-**Request (Paywall API'ye - 3D Ödeme için):**
-```json
-{
-  "MasterpassPaymentId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "PaymentType": 2,
-  "PaymentStatus": 1,
-  "MasterpassPaymentToken": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "ThreeDAddress": "https://mp-test-sdk.masterpassturkiye.com/user-authorization/mp-3d-acs-form?token=wwwwwwww-wwww-wwww-wwww-wwwwwwwwwwww",
-  "MasterpassOrderId": "999999999999",
-  "Response": "{ ... }"
-}
-```
+### 6.3. Güvenli İletişim
 
-**Request (Paywall API'ye - NonSecure Ödeme için):**
-```json
-{
-  "MasterpassPaymentId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "PaymentType": 1,
-  "PaymentStatus": 3,
-  "MasterpassPaymentToken": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "MasterpassOrderId": "000000000000",
-  "Response": "{ ... }"
-}
-```
-
-**Not:** Bu istek merchant backend tarafından yapılmalıdır. SDK bu isteği otomatik olarak atmaz.
+- Tüm API çağrıları HTTPS üzerinden yapılır
+- Kart bilgileri RSA-2048 ile şifrelenir
 
 ---
 
-## Response Formatları
+## 7. Hata Yönetimi
 
-### Genel Response Yapısı
-
-Tüm fonksiyonlar aşağıdaki genel response formatını kullanır:
-
-```json
-{
-  "success": boolean,
-  "status": "SUCCESS" | "ACTION_REQUIRED" | "FAILED" | "ERROR",
-  "source": "SDK" | "PAYWALL" | "MASTERPASS",
-  "message": string,
-  "data": object,
-  "errorCode": string, // Hata durumunda
-  "actionType": string // ACTION_REQUIRED durumunda
-}
-```
-
-### Status Değerleri
-
-- `SUCCESS`: İşlem başarılı
-- `ACTION_REQUIRED`: Kullanıcı etkileşimi gerekli (OTP, 3D Secure, Merchant Link vb.)
-- `FAILED`: İşlem başarısız
-- `ERROR`: Sistem hatası
-
-### Action Type Değerleri
-
-- `3D`: 3D Secure doğrulama gerekli
-- `BANK_OTP`: Banka OTP doğrulama gerekli
-- `MASTERPASS_OTP_REQUIRED`: Masterpass OTP doğrulama gerekli
-- `MERCHANT_LINK_REQUIRED`: Merchant link işlemi gerekli
-
----
-
-## Hata Kodları
+### 7.1. Hata Kodları
 
 | Hata Kodu | Açıklama |
 |-----------|----------|
-| `MISSING_TOKEN` | Token eksik veya boş |
-| `INVALID_TOKEN_FORMAT` | Token GUID formatında değil |
-| `SESSION_EXPIRED` | Session süresi dolmuş |
-| `MISSING_REFERENCE_CODE` | Reference code eksik |
-| `MISSING_USER_ID` | User ID eksik |
-| `MISSING_USER_PHONE` | User phone eksik |
+| `MISSING_CARD_DATA` | Kart bilgileri eksik |
+| `MISSING_CARD_ALIAS` | cardAlias eksik (registerAndPurchase için) |
+| `INVALID_CARD_NUMBER_FORMAT` | Kart numarası formatı geçersiz |
+| `INVALID_EXPIRY_DATE_FORMAT` | Son kullanma tarihi formatı geçersiz |
+| `INVALID_CVV_FORMAT` | CVV formatı geçersiz |
 | `ACCOUNT_NOT_FOUND` | Hesap bulunamadı |
-| `ACCOUNT_NOT_LINKED_TO_MERCHANT` | Hesap merchant'a bağlı değil |
-| `CARD_ALREADY_EXISTS` | Kart zaten kayıtlı |
+| `MASTERPASS_ERROR` | Masterpass hatası |
+| `SESSION_EXPIRED` | Session süresi dolmuş |
+| `MISSING_TOKEN` | Token eksik |
+| `MISSING_SESSION_ID` | Session ID eksik |
 | `4004` | Kart zaten kayıtlı (Masterpass) |
 | `4005` | User ID zaten kullanımda (Masterpass) |
 | `5001` | OTP doğrulama gerekli (Masterpass) |
 | `5010` | 3D Secure doğrulama gerekli (Masterpass) |
 
+### 7.2. Hata Handling
+
+```typescript
+try {
+  const result = await PaywallJsSdk.payment.registerAndPurchase(params);
+  
+  if (!result.success) {
+    console.error('Hata:', result.message);
+    console.error('Hata kodu:', result.errorCode);
+    
+    // Hata koduna göre işlem yap
+    if (result.errorCode === 'MISSING_CARD_ALIAS') {
+      // cardAlias eksik, kullanıcıdan al
+    } else if (result.errorCode === 'SESSION_EXPIRED') {
+      // Session süresi dolmuş, yeni session oluştur
+    }
+  }
+} catch (error) {
+  console.error('Beklenmeyen hata:', error);
+}
+```
+
 ---
 
-## Notlar
+## 8. Best Practices
+
+### 8.1. Session Yönetimi
+
+- Her ödeme işlemi için yeni session oluştur
+- Session'ı güvenli bir şekilde sakla
+- Session timeout'larını handle et
+
+```typescript
+// Session kontrolü
+if (!isSessionValid()) {
+  const newSession = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+    referenceCode: Date.now().toString(),
+    userId: 'USER_123',
+    userPhone: '905437892802'
+  });
+  // Yeni session'ı kullan
+}
+```
+
+### 8.2. Error Handling
+
+- Tüm SDK çağrılarını try-catch ile sarmala
+- Response success kontrolü yap
+- Kullanıcıya anlamlı hata mesajları göster
+
+```typescript
+async function makePayment() {
+  try {
+    const result = await PaywallJsSdk.payment.init(params);
+    
+    if (!result.success) {
+      // Hata durumunu handle et
+      showErrorToUser(result.message);
+      return;
+    }
+    
+    // Başarılı durumu handle et
+    handlePaymentSuccess(result.data);
+  } catch (error) {
+    // Beklenmeyen hataları handle et
+    console.error('Payment error:', error);
+    showErrorToUser('Ödeme işlemi sırasında bir hata oluştu.');
+  }
+}
+```
+
+### 8.3. 3D Secure Handling
+
+- SDK otomatik redirect yapmaz
+- Merchant UI redirectUrl'i kendisi açmalıdır
+- 3D callback'leri handle et
+
+```typescript
+if (result.data.actionType === '3D') {
+  // 3D Secure redirect
+  window.location.href = result.data.redirectUrl;
+  
+  // Veya yeni pencerede aç
+  // window.open(result.data.redirectUrl, '_blank');
+}
+```
+
+### 8.4. OTP Handling
+
+- SDK OTP doğrulaması yapmaz
+- Merchant backend OTP doğrulamasını yapar
+- Token'ı merchant backend'e gönder
+
+```typescript
+if (result.data.actionType === 'BANK_OTP') {
+  // OTP token'ı backend'e gönder
+  const otpToken = result.data.token;
+  
+  // Kullanıcıdan OTP al
+  const otpCode = await getUserInput('OTP kodunu girin:');
+  
+  // Backend'e OTP doğrulama isteği gönder
+  const verifyResult = await verifyOtpOnBackend(otpToken, otpCode);
+  
+  if (verifyResult.success) {
+    // Ödeme tamamlandı
+  }
+}
+```
+
+---
+
+## 9. Örnekler
+
+### 9.1. Tam Ödeme Akışı
+
+```typescript
+async function completePaymentFlow() {
+  try {
+    // 1. SDK Initialization
+    const initResult = await PaywallJsSdk.Init({
+      environment: 'test',
+      token: await getTokenFromBackend()
+    });
+    
+    if (!initResult.success) {
+      throw new Error('SDK initialization failed');
+    }
+    
+    // 2. Session Start
+    const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+      referenceCode: Date.now().toString(),
+      userId: 'USER_123',
+      userPhone: '905437892802'
+    });
+    
+    if (!session.success) {
+      throw new Error('Session start failed');
+    }
+    
+    // 3. Provider Init
+    const providerInit = await PaywallJsSdk.providers.masterpass.init({
+      accountKey: '905437892802'
+    });
+    
+    if (!providerInit.success) {
+      throw new Error('Provider init failed');
+    }
+    
+    // 4. Payment
+    const payment = await PaywallJsSdk.payment.init({
+      sessionId: session.data.sessionId,
+      paymentSource: 'REGISTERED_CARD',
+      paymentDetail: {
+        amount: 100.00,
+        currencyId: 949,
+        merchantUniqueCode: 'ORDER-001',
+        trackingCode: 'TRACK-001',
+        successUrl: 'https://merchant.com/success',
+        failUrl: 'https://merchant.com/fail',
+        clientIp: '192.168.1.1',
+        installment: 1
+      },
+      card: {
+        cardAlias: 'MyCard',
+        cardBin: '540667',
+        cardMasked: '540667******0001',
+        ownerName: 'John Doe'
+      },
+      cardData: {
+        cardAlias: 'MyCard'
+      },
+      products: [
+        {
+          productId: 'PROD-001',
+          productName: 'Product 1',
+          productAmount: 100.00
+        }
+      ]
+    });
+    
+    // 5. Response Handling
+    if (payment.success && payment.data.status === 'SUCCESS') {
+      console.log('Ödeme başarılı!');
+      return { success: true, data: payment.data };
+    } else if (payment.data.status === 'ACTION_REQUIRED') {
+      if (payment.data.actionType === '3D') {
+        window.location.href = payment.data.redirectUrl;
+        return { success: true, requires3D: true };
+      } else if (payment.data.actionType === 'BANK_OTP') {
+        return { success: true, requiresOTP: true, token: payment.data.token };
+      }
+    } else {
+      throw new Error(payment.message || 'Payment failed');
+    }
+  } catch (error) {
+    console.error('Payment flow error:', error);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+### 9.2. Merchant Link Akışı
+
+```typescript
+async function merchantLinkFlow() {
+  try {
+    // 1. SDK Init
+    await PaywallJsSdk.Init({
+      environment: 'test',
+      token: await getTokenFromBackend()
+    });
+    
+    // 2. Session Start
+    const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+      referenceCode: Date.now().toString(),
+      userId: 'USER_123',
+      userPhone: '905437892802'
+    });
+    
+    // 3. Provider Init
+    await PaywallJsSdk.providers.masterpass.init({
+      accountKey: '905437892802'
+    });
+    
+    // 4. Account Access
+    const account = await PaywallJsSdk.providers.masterpass.accountAccess({
+      accountKey: '905437892802',
+      accountKeyType: 'Msisdn',
+      userId: 'USER_123'
+    });
+    
+    if (account.data.status === 'ACTION_REQUIRED' && account.data.actionType === 'MERCHANT_LINK_REQUIRED') {
+      // 5. Merchant Link
+      const link = await PaywallJsSdk.providers.masterpass.merchantLink({
+        accountKey: '905437892802'
+      });
+      
+      if (link.data.status === 'ACTION_REQUIRED' && link.data.actionType === 'BANK_OTP') {
+        // 6. OTP Doğrulama
+        const otpCode = await getUserInput('OTP kodunu girin:');
+        const verify = await PaywallJsSdk.providers.masterpass.verifyOtp({
+          otpCode: otpCode
+        });
+        
+        if (verify.success) {
+          console.log('Merchant link başarılı!');
+        }
+      }
+    }
+    
+    // 7. Kart Listesi
+    const cards = await PaywallJsSdk.providers.masterpass.getCardList({
+      accountKey: '905437892802',
+      accountKeyType: 'Msisdn',
+      userId: 'USER_123'
+    });
+    
+    return cards.data.cards;
+  } catch (error) {
+    console.error('Merchant link flow error:', error);
+    throw error;
+  }
+}
+```
+
+### 9.3. Register and Purchase Akışı
+
+```typescript
+async function registerAndPurchaseFlow() {
+  try {
+    // 1. SDK Init
+    await PaywallJsSdk.Init({
+      environment: 'test',
+      token: await getTokenFromBackend()
+    });
+    
+    // 2. Session Start
+    const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+      referenceCode: Date.now().toString(),
+      userId: 'USER_123',
+      userPhone: '905437892802'
+    });
+    
+    // 3. Register and Purchase
+    const result = await PaywallJsSdk.payment.registerAndPurchase({
+      sessionId: session.data.sessionId,
+      accountKey: '905437892802',
+      accountKeyType: 'Msisdn',
+      merchantUserId: 'USER_123',
+      paymentDetail: {
+        amount: 10000, // 100.00 TRY
+        currencyId: 949,
+        merchantUniqueCode: 'ORDER-001',
+        trackingCode: 'TRACK-001',
+        successUrl: 'https://merchant.com/success',
+        failUrl: 'https://merchant.com/fail',
+        clientIp: '192.168.1.1',
+        installment: 1
+      },
+      cardData: {
+        cardNumber: '5528790000000008',
+        cardHolderName: 'John Doe',
+        expiryDate: '2612',
+        cvv: '123',
+        cardAlias: 'My Card' // ZORUNLU
+      },
+      products: [
+        {
+          productId: 'PROD-001',
+          productName: 'Product 1',
+          productAmount: 10000
+        }
+      ]
+    });
+    
+    // 4. Response Handling
+    if (result.success) {
+      if (result.data.status === 'SUCCESS') {
+        console.log('Kart kaydedildi ve ödeme başarılı!');
+        return { success: true, data: result.data };
+      } else if (result.data.status === 'ACTION_REQUIRED') {
+        if (result.data.actionType === 'BANK_OTP') {
+          // OTP doğrulama gerekiyor
+          const otpCode = await getUserInput('OTP kodunu girin:');
+          // OTP doğrulaması merchant backend'de yapılmalı
+          return { success: true, requiresOTP: true, token: result.data.token };
+        } else if (result.data.actionType === '3D') {
+          // 3D Secure gerekiyor
+          window.location.href = result.data.redirectUrl;
+          return { success: true, requires3D: true };
+        }
+      }
+    } else {
+      throw new Error(result.message || 'Register and purchase failed');
+    }
+  } catch (error) {
+    console.error('Register and purchase flow error:', error);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+---
+
+## 10. TypeScript Desteği
+
+SDK TypeScript ile kullanılabilir. Type definitions dosyası şu şekilde tanımlanabilir:
+
+```typescript
+// paywall-sdk.d.ts
+declare global {
+  interface Window {
+    PaywallJsSdk: PaywallJsSdkType;
+    PaywallSDK: {
+      PaywallJsSdk: PaywallJsSdkType;
+    };
+  }
+}
+
+interface SdkResponse<T = any> {
+  success: boolean;
+  status: 'SUCCESS' | 'ACTION_REQUIRED' | 'FAILED';
+  source: 'SDK' | 'PAYWALL' | 'MASTERPASS';
+  message?: string;
+  errorCode?: string;
+  actionType?: 'BANK_OTP' | '3D' | 'MASTERPASS_OTP' | 'MERCHANT_LINK_REQUIRED';
+  data?: T;
+  providerMeta?: {
+    httpStatus?: number;
+    responseCode?: string;
+    raw?: any;
+  };
+}
+
+interface PaywallJsSdkType {
+  Init: (params: {
+    token: string;
+    environment: 'dev' | 'test' | 'prod';
+    merchantId?: string;
+    timeoutMs?: number;
+    logLevel?: 'none' | 'error' | 'info' | 'debug';
+  }) => Promise<SdkResponse>;
+  
+  ExternalService: {
+    Masterpass: {
+      startSession: (params: {
+        referenceCode: string;
+        userId: string;
+        userPhone: string;
+        force3D?: boolean;
+        phoneVerifiedByMerchant?: boolean;
+      }) => Promise<SdkResponse>;
+    };
+  };
+  
+  providers: {
+    masterpass: {
+      init: (params?: { accountKey?: string }) => Promise<SdkResponse>;
+      AddCard: (params: {
+        accountKey: string;
+        accountKeyType: string;
+        userId: string;
+        accountAliasName: string;
+        cardHolderName: string;
+        cardNumber: string;
+        expiryDate: string;
+        cvv: string;
+        requestReferenceNumber: string;
+        deviceFingerPrint?: string;
+      }) => Promise<SdkResponse>;
+      getCardList: (params: {
+        accountKey: string;
+        accountKeyType: string;
+        userId: string;
+      }) => Promise<SdkResponse>;
+      removeCard: (params: {
+        accountKey: string;
+        cardAlias: string;
+      }) => Promise<SdkResponse>;
+      accountAccess: (params: {
+        accountKey: string;
+        accountKeyType: string;
+        userId: string;
+      }) => Promise<SdkResponse>;
+      merchantLink: (params: {
+        accountKey: string;
+      }) => Promise<SdkResponse>;
+      merchantUnlink: (params: {
+        accountKey: string;
+      }) => Promise<SdkResponse>;
+      verifyOtp: (params: {
+        otpCode: string;
+      }) => Promise<SdkResponse>;
+      resendOtp: () => Promise<SdkResponse>;
+    };
+  };
+  
+  payment: {
+    init: (params: any) => Promise<SdkResponse>;
+    registerAndPurchase: (params: {
+      sessionId: string;
+      accountKey: string;
+      accountKeyType: string;
+      merchantUserId: string;
+      paymentDetail: {
+        amount: number;
+        currencyId: number;
+        merchantUniqueCode: string;
+        trackingCode: string;
+        successUrl: string;
+        failUrl: string;
+        clientIp: string;
+        installment: number;
+        channelId?: number;
+        tagId?: number;
+      };
+      cardData: {
+        cardNumber: string;
+        cardHolderName: string;
+        expiryDate: string;
+        cvv: string;
+        cardAlias: string;
+      };
+      products: Array<{
+        productId: string;
+        productName: string;
+        productCategory?: string;
+        productDescription?: string;
+        productAmount: number;
+      }>;
+      customer?: {
+        fullName?: string;
+        phone?: string;
+        customerId?: string;
+        email?: string;
+        identityNumber?: string;
+      };
+      force3D?: boolean;
+      secure3DModel?: string;
+      isMsisdnValidatedByMerchant?: boolean;
+    }) => Promise<SdkResponse>;
+  };
+}
+
+export {};
+```
+
+---
+
+## 11. Debugging
+
+### 11.1. Log Seviyeleri
+
+SDK, farklı log seviyeleri destekler:
+
+- `'none'`: Log yok
+- `'error'`: Sadece hatalar (default)
+- `'info'`: Bilgilendirme mesajları
+- `'debug'`: Detaylı debug bilgileri
+
+**Örnek:**
+
+```typescript
+await PaywallJsSdk.Init({
+  environment: 'test',
+  token: 'TOKEN',
+  logLevel: 'debug' // Debug mode aktif
+});
+```
+
+### 11.2. Debug Mode Aktifleştirme
+
+Debug mode aktifleştirildiğinde, `providerMeta.raw` içinde detaylı response bilgileri bulunur:
+
+```typescript
+const result = await PaywallJsSdk.payment.init(params);
+
+if (result.providerMeta?.raw) {
+  console.log('Raw response:', result.providerMeta.raw);
+}
+```
+
+### 11.3. Provider Meta Bilgileri
+
+Tüm response'larda `providerMeta` içinde HTTP status ve response code bilgileri bulunur:
+
+```typescript
+{
+  success: true,
+  status: 'SUCCESS',
+  data: { ... },
+  providerMeta: {
+    httpStatus: 200,
+    responseCode: '0000',
+    raw: { ... } // debug mode aktifse
+  }
+}
+```
+
+---
+
+## 12. Sürüm Notları
+
+### Version 1.0.4
+
+**Yeni Özellikler:**
+
+- `registerAndPurchase()` metodu eklendi - Kart kaydı ve ödeme tek seferde
+- Geliştirilmiş hata mesajları
+- TypeScript type definitions iyileştirildi
+
+**Breaking Changes:**
+
+- Yok
+
+**Deprecated Fonksiyonlar:**
+
+- Yok
+
+---
+
+## 13. Destek ve İletişim
+
+### 13.1. GitHub Repository
+
+SDK'nın kaynak kodları ve dokümantasyonu GitHub'da bulunmaktadır.
+
+### 13.2. Issue Reporting
+
+Sorun bildirmek veya özellik isteği yapmak için GitHub Issues kullanabilirsiniz.
+
+### 13.3. Dokümantasyon Linkleri
+
+- [API Referansı](#4-api-referansı)
+- [Örnekler](#9-örnekler)
+- [Best Practices](#8-best-practices)
+
+---
+
+## Ek Notlar
 
 - Tüm fonksiyonlar Promise döner
 - SDK initialize edilmeden fonksiyonlar çağrılamaz
@@ -1072,3 +1517,10 @@ Tüm fonksiyonlar aşağıdaki genel response formatını kullanır:
 - Kart bilgileri RSA ile şifrelenerek gönderilir
 - 3D Secure akışında `redirectUrl`'e yönlendirme yapılmalıdır
 - OTP doğrulama merchant backend tarafından yapılmalıdır
+- `registerAndPurchase` için `cardAlias` zorunludur
+- Response code `5001` → OTP gerekiyor
+- Response code `5010` → 3D Secure gerekiyor
+
+---
+
+**Son Güncelleme:** 2024

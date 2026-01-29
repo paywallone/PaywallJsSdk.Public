@@ -131,6 +131,24 @@
   border-radius: 6px;
 }
 
+.force3d-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  user-select: none;
+
+  input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .btn {
   padding: 12px 24px;
   border: none;

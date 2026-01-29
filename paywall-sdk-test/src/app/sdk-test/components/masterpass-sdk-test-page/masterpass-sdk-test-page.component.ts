@@ -141,7 +141,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     cvv: '',
     cardHolderName: '',
     saveCard: false,
-    cardAlias: ''
+    cardAlias: '',
+    saveCardOnPayment: false // Ödeme anında kartı kaydet
   };
 
   // Customer Form
@@ -164,6 +165,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   ngOnInit() {
     this.loadLogs();
     this.updateCurrentState();
+    
+    // Initialize customer form with default values (phone excluded)
+    this.customerForm = {
+      fullName: 'Test User',
+      phone: '',
+      email: 'test@example.com',
+      identityNumber: '12345678901'
+    };
     
     // Subscribe to OTP result from dialog
     this.flowRunner.otpResult$.subscribe((otp) => {
@@ -1324,6 +1333,16 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       return;
     }
 
+    if (!this.userPhone) {
+      this.manualPaymentError = 'UserPhone (accountKey) is required for registerAndPurchase';
+      return;
+    }
+
+    if (!this.userId || !this.userId.trim()) {
+      this.manualPaymentError = 'UserId is required for registerAndPurchase';
+      return;
+    }
+
     this.manualPaymentLoading = true;
     this.manualPaymentSuccess = false;
     this.manualPaymentError = null;
@@ -1343,6 +1362,18 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           !this.manualCardForm.expiryYear || !this.manualCardForm.cvv) {
         this.manualPaymentError = 'All card fields are required';
         this.manualPaymentLoading = false;
+        return;
+      }
+
+      // Eğer "Kartımı Kaydet ve Öde" seçiliyse registerAndPurchase kullan
+      if (this.manualCardForm.saveCardOnPayment) {
+        // CardAlias zorunlu kontrolü
+        if (!this.manualCardForm.cardAlias || !this.manualCardForm.cardAlias.trim()) {
+          this.manualPaymentError = 'Card Alias is required when saving card';
+          this.manualPaymentLoading = false;
+          return;
+        }
+        await this.registerAndPurchase(cardNumber);
         return;
       }
 
@@ -1449,6 +1480,192 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       this.manualPaymentError = error.message || 'Payment failed';
       this.logService.addStep({
         actionName: 'payWithManualCard',
+        error: error.message || 'Unknown error'
+      });
+    } finally {
+      this.manualPaymentLoading = false;
+      this.loadLogs();
+      this.updateCurrentState();
+    }
+  }
+
+  async registerAndPurchase(cardNumber: string) {
+    try {
+      // Prepare registerAndPurchase request payload
+      const requestPayload: any = {
+        sessionId: this.sessionId!,
+        accountKey: this.userPhone,
+        accountKeyType: 'Msisdn',
+        merchantUserId: this.userId.trim(),
+        paymentDetail: {
+          amount: this.paymentAmount,
+          currencyId: 1,
+          merchantUniqueCode: 'MERCHANT-' + Date.now(),
+          trackingCode: this.trackingCode,
+          successUrl: 'https://merchant.com/success',
+          failUrl: 'https://merchant.com/fail',
+          clientIp: '192.168.1.1',
+          installment: 1
+        },
+        cardData: {
+          cardNumber: cardNumber,
+          cardHolderName: this.manualCardForm.cardHolderName,
+          expiryDate: this.manualCardForm.expiryMonth + this.manualCardForm.expiryYear,
+          cvv: this.manualCardForm.cvv,
+          cardAlias: this.manualCardForm.cardAlias.trim()
+        },
+        products: this.products.map(p => ({
+          productId: p.productId || p.productCode,
+          productName: p.productName,
+          productAmount: p.productAmount || p.totalPrice || 0,
+          productCategory: undefined,
+          productDescription: undefined
+        })),
+        force3D: this.force3D,
+        customer: {
+          fullName: this.customerForm.fullName,
+          phone: this.customerForm.phone,
+          email: this.customerForm.email,
+          identityNumber: this.customerForm.identityNumber
+        }
+      };
+
+      this.logService.addStep({
+        actionName: 'registerAndPurchase',
+        request: this.logService.maskSensitiveData(requestPayload)
+      });
+
+      // Call SDK - registerAndPurchase
+      const response = await PaywallJsSdk.payment['registerAndPurchase'](requestPayload);
+      this.manualPaymentResponse = response;
+
+      const maskedResponse = this.logService.maskSensitiveData(response);
+      const normalized = this.logService.normalizeResponse(response);
+
+      this.logService.addStep({
+        actionName: 'registerAndPurchase',
+        response: maskedResponse,
+        normalizedResult: normalized
+      });
+
+      // Handle response
+      // Extract result and responseCode (Masterpass SDK format)
+      // Response format can be: response.result OR response.data.result OR response.data
+      const responseAny = response as any;
+      const result = responseAny.result || responseAny.data?.result || responseAny.data;
+      const responseCode = result?.responseCode || responseAny.data?.providerMeta?.responseCode || responseAny.providerMeta?.responseCode;
+      const statusCode = responseAny.statusCode || responseAny.data?.statusCode;
+      const has3DUrl = result?.url3d || responseAny.data?.redirectUrl;
+      const otpToken = result?.token || responseAny.data?.token || responseAny.token;
+      
+      // Debug: Log response structure
+      console.log('[registerAndPurchase] Response structure:', {
+        hasResult: !!result,
+        responseCode: responseCode,
+        statusCode: statusCode,
+        hasOtpToken: !!otpToken,
+        has3DUrl: !!has3DUrl,
+        responseKeys: Object.keys(responseAny),
+        resultKeys: result ? Object.keys(result) : null
+      });
+      
+      // Check OTP requirement first (5010 for payment)
+      // OTP can come from: result.responseCode OR statusCode 202 with responseCode 5010
+      if ((responseCode === '5010' || (statusCode === 202 && result?.responseCode === '5010')) && otpToken) {
+        // Set OTP blocking state
+        this.flowRunner.updateFlowState({
+          awaitingOtp: true,
+          pendingAction: 'registerAndPurchase' as any,
+          otpToken: otpToken
+        });
+        
+        // Open OTP popup
+        this.flowRunner.otpRequired$.next({
+          title: 'Bank OTP Required',
+          message: result?.description || responseAny.data?.message || responseAny.message || 'Please enter OTP code sent to your phone'
+        });
+        
+        this.manualPaymentLoading = false;
+        this.loadLogs();
+        this.updateCurrentState();
+        return; // STOP - no auto-retry, wait for OTP verification
+      }
+      
+      // Check SDK response format
+      if (response.success && response.data) {
+        const data = response.data;
+        
+        if (data.status === 'SUCCESS') {
+          // Payment and card registration successful
+          this.manualPaymentSuccess = true;
+          this.manualPaymentError = null;
+        } else if (data.status === 'ACTION_REQUIRED') {
+          if (data.actionType === '3D') {
+            // 3D Secure required
+            this.manualPaymentError = '3D Secure required. URL: ' + (data.redirectUrl || 'N/A');
+            // Note: In a real application, you would redirect to data.redirectUrl
+          } else if (data.actionType === 'BANK_OTP') {
+            // OTP verification required (already handled above, but keep for compatibility)
+            if (otpToken) {
+              this.flowRunner.updateFlowState({
+                awaitingOtp: true,
+                pendingAction: 'registerAndPurchase' as any,
+                otpToken: otpToken
+              });
+              
+              this.flowRunner.otpRequired$.next({
+                title: 'Bank OTP Required',
+                message: data.message || 'Please enter OTP code sent to your phone'
+              });
+              
+              this.manualPaymentLoading = false;
+              this.loadLogs();
+              this.updateCurrentState();
+              return;
+            }
+          }
+        } else {
+          // Payment failed
+          this.manualPaymentSuccess = false;
+          this.manualPaymentError = data.message || response.message || 'Payment failed';
+        }
+      } else if (statusCode === 202 && responseCode === '5010') {
+        // Masterpass response format: statusCode 202 with responseCode 5010 means OTP required
+        // This should have been handled above, but keep as fallback
+        if (otpToken) {
+          this.flowRunner.updateFlowState({
+            awaitingOtp: true,
+            pendingAction: 'registerAndPurchase' as any,
+            otpToken: otpToken
+          });
+          
+          this.flowRunner.otpRequired$.next({
+            title: 'Bank OTP Required',
+            message: result?.description || 'Please enter OTP code sent to your phone'
+          });
+          
+          this.manualPaymentLoading = false;
+          this.loadLogs();
+          this.updateCurrentState();
+          return;
+        }
+      } else if (statusCode === 202 && has3DUrl) {
+        // 3D Secure required (after OTP or directly)
+        this.manualPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
+      } else if (statusCode === 202) {
+        // Success (202 Accepted)
+        this.manualPaymentSuccess = true;
+        this.manualPaymentError = null;
+      } else {
+        // Request failed
+        this.manualPaymentSuccess = false;
+        this.manualPaymentError = response.message || result?.description || 'Payment failed';
+      }
+    } catch (error: any) {
+      this.manualPaymentSuccess = false;
+      this.manualPaymentError = error.message || 'Payment failed';
+      this.logService.addStep({
+        actionName: 'registerAndPurchase',
         error: error.message || 'Unknown error'
       });
     } finally {
