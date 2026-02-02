@@ -457,6 +457,55 @@
 	}
 
 	/**
+	 * Global SDK Response Contract
+	 *
+	 * TÜM public SDK fonksiyonları bu interface'i kullanarak response döner.
+	 * ASLA void dönüş yok, ASLA throw yok.
+	 */
+	/**
+	 * Başarılı response oluşturur.
+	 */
+	function createSuccessResponse(source, data, message, providerMeta) {
+		return {
+			success: true,
+			status: 'SUCCESS',
+			source,
+			...(message && { message }),
+			...(data && { data }),
+			...(providerMeta && { providerMeta }),
+		};
+	}
+	/**
+	 * Başarısız response oluşturur.
+	 */
+	function createFailedResponse(source, message, errorCode, providerMeta, additionalData) {
+		return {
+			success: false,
+			status: 'FAILED',
+			source,
+			message,
+			...(errorCode && { errorCode }),
+			...(providerMeta && { providerMeta }),
+			...(additionalData && additionalData),
+		};
+	}
+	/**
+	 * Aksiyon gerekli response oluşturur.
+	 */
+	function createActionRequiredResponse(source, actionType, message, data, providerMeta, actionHint) {
+		return {
+			success: true,
+			status: 'ACTION_REQUIRED',
+			source,
+			actionType,
+			message,
+			...(data && { data }),
+			...(providerMeta && { providerMeta }),
+			...(actionHint),
+		};
+	}
+
+	/**
 	 * Create a bound version of a function with a specified `this` context
 	 *
 	 * @param {Function} fn - The function to bind
@@ -4435,55 +4484,6 @@
 	async function httpGet(url, config) {
 		const client = getHttpClient();
 		return client.get(url, config);
-	}
-
-	/**
-	 * Global SDK Response Contract
-	 *
-	 * TÜM public SDK fonksiyonları bu interface'i kullanarak response döner.
-	 * ASLA void dönüş yok, ASLA throw yok.
-	 */
-	/**
-	 * Başarılı response oluşturur.
-	 */
-	function createSuccessResponse(source, data, message, providerMeta) {
-		return {
-			success: true,
-			status: 'SUCCESS',
-			source,
-			...(message && { message }),
-			...(data && { data }),
-			...(providerMeta && { providerMeta }),
-		};
-	}
-	/**
-	 * Başarısız response oluşturur.
-	 */
-	function createFailedResponse(source, message, errorCode, providerMeta, additionalData) {
-		return {
-			success: false,
-			status: 'FAILED',
-			source,
-			message,
-			...(errorCode && { errorCode }),
-			...(providerMeta && { providerMeta }),
-			...(additionalData && additionalData),
-		};
-	}
-	/**
-	 * Aksiyon gerekli response oluşturur.
-	 */
-	function createActionRequiredResponse(source, actionType, message, data, providerMeta, actionHint) {
-		return {
-			success: true,
-			status: 'ACTION_REQUIRED',
-			source,
-			actionType,
-			message,
-			...(data && { data }),
-			...(providerMeta && { providerMeta }),
-			...(actionHint),
-		};
 	}
 
 	/**
@@ -10456,6 +10456,119 @@
 						raw: error,
 					},
 				};
+			}
+		},
+		async InitWithMasterpassToken(config) {
+			try {
+				if (!config.token || config.token.trim() === '') {
+					return createFailedResponse('SDK', 'Token is required and cannot be empty. Please provide a valid temp token.', 'MISSING_TOKEN', undefined, {
+						data: {
+							environment: config.environment,
+							sdkInitialized: false,
+							hasMasterpassSession: false,
+						},
+					});
+				}
+				if (typeof config.includeMasterpassSession !== 'boolean') {
+					return createFailedResponse('SDK', 'includeMasterpassSession is required and must be a boolean.', 'MISSING_INCLUDE_MASTERPASS_SESSION', undefined, {
+						data: {
+							environment: config.environment,
+							sdkInitialized: false,
+							hasMasterpassSession: false,
+						},
+					});
+				}
+				if (!config.environment || !['dev', 'test', 'prod'].includes(config.environment)) {
+					return createFailedResponse('SDK', `Invalid environment: ${config.environment}. Must be 'dev', 'test', or 'prod'.`, 'INVALID_ENVIRONMENT', undefined, {
+						data: {
+							environment: config.environment,
+							sdkInitialized: false,
+							hasMasterpassSession: false,
+						},
+					});
+				}
+				const envConfig = resolveEnvironmentConfig(config.environment);
+				const verifyUrl = `${envConfig.paymentApiBaseUrl}/api/paywall/temptoken/sdk/verify`;
+				const response = await axios.get(verifyUrl, {
+					headers: {
+						token: config.token.trim(),
+						includeMasterpassSession: String(config.includeMasterpassSession),
+					},
+					timeout: 10000,
+				});
+				const data = response.data;
+				const body = data?.Body ?? data?.body;
+				if (!body?.Token) {
+					return createFailedResponse('PAYWALL', 'Verify response missing Body.Token.', 'VERIFY_RESPONSE_INVALID', undefined, {
+						data: {
+							environment: config.environment,
+							sdkInitialized: false,
+							hasMasterpassSession: false,
+						},
+					});
+				}
+				const fullConfig = {
+					environment: config.environment,
+					token: body.Token.trim(),
+				};
+				initConfig(fullConfig);
+				let hasMasterpassSessionResult = false;
+				const masterpass = body.Masterpass ?? body.masterpass;
+				if (masterpass?.SessionId && masterpass?.MasterpassToken) {
+					setMasterpassSession({
+						sessionId: masterpass.SessionId,
+						sessionExpiryDate: masterpass.SessionExpiryDate ?? '',
+						masterpassToken: masterpass.MasterpassToken,
+						...(masterpass.MasterpassTerminalGroupId && { masterpassTerminalGroupId: masterpass.MasterpassTerminalGroupId }),
+					});
+					setSessionId(masterpass.SessionId);
+					setMasterpassToken(masterpass.MasterpassToken);
+					if (masterpass.MasterpassMerchantId) {
+						setMasterpassMerchantId(masterpass.MasterpassMerchantId);
+					}
+					hasMasterpassSessionResult = true;
+				}
+				const responseBody = {
+					...(body.TempTokenId !== undefined && { TempTokenId: body.TempTokenId }),
+					...(body.Token && { Token: body.Token }),
+					...(body.ExpiryDateTime !== undefined && { ExpiryDateTime: body.ExpiryDateTime }),
+					...(body.Scope && { Scope: body.Scope }),
+					...(hasMasterpassSessionResult && masterpass && {
+						Masterpass: {
+							...(masterpass.SessionId && { SessionId: masterpass.SessionId }),
+							...(masterpass.SessionExpiryDate !== undefined && { SessionExpiryDate: masterpass.SessionExpiryDate }),
+							...(masterpass.MasterpassToken && { MasterpassToken: masterpass.MasterpassToken }),
+							...(masterpass.MasterpassMerchantId && { MasterpassMerchantId: masterpass.MasterpassMerchantId }),
+							...(masterpass.MasterpassTerminalGroupId && { MasterpassTerminalGroupId: masterpass.MasterpassTerminalGroupId }),
+							...(masterpass.UserId && { UserId: masterpass.UserId }),
+							...(masterpass.UserPhone && { UserPhone: masterpass.UserPhone }),
+							...(typeof masterpass.IsProd === 'boolean' && { IsProd: masterpass.IsProd }),
+							...(typeof masterpass.IsTest === 'boolean' && { IsTest: masterpass.IsTest }),
+							...(typeof masterpass.IsUat === 'boolean' && { IsUat: masterpass.IsUat }),
+						},
+					}),
+				};
+				return createSuccessResponse('SDK', {
+					environment: config.environment,
+					sdkInitialized: true,
+					hasMasterpassSession: hasMasterpassSessionResult,
+					body: responseBody,
+				}, 'SDK initialized with Masterpass token verify successfully');
+			}
+			catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				const axiosErr = error;
+				const providerMeta = {
+					...(axiosErr.response?.status != null && { httpStatus: axiosErr.response.status }),
+					raw: axiosErr.response?.data ?? error,
+				};
+				return createFailedResponse('SDK', `InitWithMasterpassToken failed: ${errorMessage}`, 'INIT_WITH_MASTERPASS_TOKEN_ERROR', providerMeta, {
+					data: {
+						environment: config.environment,
+						sdkInitialized: false,
+						hasMasterpassSession: false,
+					},
+				});
 			}
 		},
 		/**

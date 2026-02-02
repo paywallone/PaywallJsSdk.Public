@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 
 const PaywallJsSdk = window.PaywallJsSdk;
 import { MasterpassFlowRunnerService } from '../../services/masterpass-flow-runner.service';
@@ -26,6 +26,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   sdkInitError: string | null = null;
   sdkInitResponse: any = null;
   sdkInitResponseExpanded = false;
+  includeMasterpassSession = true;
+  initWithMasterpassTokenLoading = false;
 
   sessionLoading = false;
   sessionSuccess = false;
@@ -159,7 +161,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
   constructor(
     private flowRunner: MasterpassFlowRunnerService,
-    public logService: SdkLogService
+    public logService: SdkLogService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -181,6 +184,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   // ========== A) SDK / SESSION CONTROL PANEL ==========
+
+  /** InitWithMasterpassToken veya normal akış sonrası: provider + session hazır mı (flowState veya component state) */
+  isProviderAndSessionReady(): boolean {
+    const fs = this.flowRunner.getFlowState();
+    const providerOk = this.providerInitSuccess || fs.providerInitialized === true;
+    const sessionOk = this.sessionSuccess || !!(fs.sessionId);
+    return !!providerOk && !!sessionOk;
+  }
 
   async initPaywallSdk() {
     if (!this.accessToken.trim()) {
@@ -230,6 +241,142 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       });
     } finally {
       this.sdkInitLoading = false;
+      this.loadLogs();
+      this.updateCurrentState();
+    }
+  }
+
+  /**
+   * Init Paywall SDK with Masterpass Token (temp token from backend).
+   * Token = Access Token alanındaki değer (backend temptoken/sdk cevabından).
+   * Başarıda hasMasterpassSession true ise session ayrıca başlatılmaz; Init Masterpass Provider otomatik çağrılır.
+   */
+  async initPaywallWithMasterpassToken() {
+    if (!this.accessToken.trim()) {
+      this.sdkInitError = 'Token is required';
+      return;
+    }
+
+    this.initWithMasterpassTokenLoading = true;
+    this.sdkInitSuccess = false;
+    this.sdkInitError = null;
+    this.sdkInitResponse = null;
+
+    try {
+      const sdk = PaywallJsSdk as any;
+      if (typeof sdk.InitWithMasterpassToken !== 'function') {
+        this.sdkInitError = 'InitWithMasterpassToken is not available. Ensure SDK has been built with this method and re-link: in SDK folder run "npm run build", then here run "npm run reinstall-sdk".';
+        return;
+      }
+      
+      const response = await sdk.InitWithMasterpassToken({
+        environment: this.environment,
+        token: this.accessToken.trim(),
+        includeMasterpassSession: this.includeMasterpassSession,
+      });
+
+      this.sdkInitResponse = response;
+      this.logService.addStep({
+        actionName: 'initPaywallWithMasterpassToken',
+        request: {
+          environment: this.environment,
+          token: this.logService.maskSensitiveData({ token: this.accessToken }).token,
+          includeMasterpassSession: this.includeMasterpassSession,
+        },
+        response: this.logService.maskSensitiveData(response),
+        normalizedResult: this.logService.normalizeResponse(response),
+      });
+
+      // Parse: response -> data -> body -> Masterpass
+      const data = response?.data;
+      const body = data?.body;
+      const masterpass = body?.Masterpass;
+
+      // Başarı kontrolü
+      const isSuccess = (response?.success === true || response?.status === 'SUCCESS' || data?.status === 'SUCCESS');
+      const isSdkInitialized = data?.sdkInitialized === true;
+      const hasMasterpassSession = data?.hasMasterpassSession === true;
+      const ok = isSuccess && isSdkInitialized;
+
+      if (!ok) {
+        this.sdkInitSuccess = false;
+        this.sdkInitError = response?.message || data?.message || 'InitWithMasterpassToken failed';
+        return;
+      }
+
+      // OK: SDK init başarılı
+      this.sdkInitSuccess = true;
+      this.sdkInitError = null;
+      const currentToken = (body?.Token || this.accessToken) as string;
+
+      // Masterpass session var mı?
+      if (hasMasterpassSession && masterpass) {
+        // ZORUNLU: session + provider state'lerini set et
+        this.sessionId = masterpass.SessionId || masterpass.sessionId || null;
+        this.masterpassToken = masterpass.MasterpassToken || masterpass.masterpassToken || null;
+        this.sessionSuccess = true;
+        this.sessionError = null;
+        this.providerInitSuccess = true;
+        this.providerInitError = null;
+        this.sessionResponse = { success: true, data: { sessionId: this.sessionId, masterpassToken: this.masterpassToken } };
+        this.providerInitResponse = { success: true, data: { masterpassSdkInitialized: true } };
+
+        // userId ve userPhone da response'tan set et (form alanları boşsa bunlar kullanılır)
+        const responseUserId = masterpass.UserId || masterpass.userId;
+        const responseUserPhone = masterpass.UserPhone || masterpass.userPhone;
+        
+        // Component state: response'tan geleni tercih et, yoksa form alanını kullan
+        if (responseUserId && !this.userId) {
+          this.userId = responseUserId;
+        }
+        if (responseUserPhone && !this.userPhone) {
+          this.userPhone = responseUserPhone;
+        }
+
+        // flowRunner: userId ve userPhone kesin set edilsin (response'tan veya form'dan)
+        const finalUserId = this.userId || responseUserId || '';
+        const finalUserPhone = this.userPhone || responseUserPhone || '';
+        const sid = this.sessionId || '';
+        
+        const flowUpdate = {
+          environment: this.environment,
+          currentToken,
+          sessionId: sid,
+          providerInitialized: true,
+          userId: finalUserId,
+          userPhone: finalUserPhone,
+        };
+        
+        this.flowRunner.updateFlowState(flowUpdate);
+        
+        // SDK zorunlu: providers.masterpass.init() çağır
+        try {
+          const providerInitResponse = await PaywallJsSdk.providers.masterpass.init();
+          
+          if (providerInitResponse.success === true && providerInitResponse.data?.masterpassSdkInitialized === true) {
+            this.providerInitSuccess = true;
+            this.providerInitError = null;
+            this.providerInitResponse = providerInitResponse;
+            this.flowRunner.updateFlowState({ providerInitialized: true });
+          }
+        } catch (providerError: any) {
+          this.providerInitError = providerError.message || 'Provider init failed after InitWithMasterpassToken';
+        }
+      } else {
+        // Masterpass yok: sadece SDK init state
+        this.flowRunner.updateFlowState({ environment: this.environment, currentToken });
+      }
+      
+      this.cdr.detectChanges();
+    } catch (error: any) {
+      this.sdkInitSuccess = false;
+      this.sdkInitError = error.message || 'InitWithMasterpassToken failed';
+      this.logService.addStep({
+        actionName: 'initPaywallWithMasterpassToken',
+        error: error.message || 'Unknown error',
+      });
+    } finally {
+      this.initWithMasterpassTokenLoading = false;
       this.loadLogs();
       this.updateCurrentState();
     }
@@ -350,6 +497,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   async accountAccess(): Promise<void> {
     // 🧱 ZORUNLU GUARD BLOĞU (TRY-CATCH DIŞINDA)
     const flowState = this.flowRunner.getFlowState();
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
 
     // Guard: OTP blocking state - RETURN (NO ERROR THROW)
     if (flowState.awaitingOtp) {
@@ -359,16 +508,16 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       return;
     }
 
-    // Guard: Provider not initialized - RETURN (NO ERROR THROW)
-    if (!this.providerInitSuccess) {
-      this.cardListError = 'Provider must be initialized first';
+    // Guard: Provider and session ready check
+    if (!this.isProviderAndSessionReady()) {
+      this.cardListError = 'Provider and session must be ready first';
       this.cardListLoading = false;
       this.cardListSuccess = false;
       return;
     }
 
     // Guard: Account key missing - RETURN (NO ERROR THROW)
-    if (!this.userPhone) {
+    if (!userPhone) {
       this.cardListError = 'UserPhone (accountKey) is required';
       this.cardListLoading = false;
       this.cardListSuccess = false;
@@ -376,7 +525,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     }
 
     // Guard: User ID missing - RETURN (NO ERROR THROW)
-    if (!this.userId?.trim()) {
+    if (!userId?.trim()) {
       this.cardListError = 'userId is required for Masterpass account access';
       this.cardListLoading = false;
       this.cardListSuccess = false;
@@ -391,9 +540,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     try {
       const requestPayload = {
-        accountKey: this.userPhone,
+        accountKey: userPhone,
         accountKeyType: 'Msisdn',
-        userId: this.userId.trim()
+        userId: userId.trim()
       };
 
       this.logService.addStep({ actionName: 'accountAccess', request: requestPayload });
@@ -647,6 +796,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   async merchantLink(): Promise<void> {
     // 🧱 ZORUNLU GUARD BLOĞU (TRY-CATCH DIŞINDA)
     const flowState = this.flowRunner.getFlowState();
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
 
     // Guard: OTP blocking state - RETURN (NO ERROR THROW)
     if (flowState.awaitingOtp) {
@@ -656,16 +807,16 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       return;
     }
 
-    // Guard: Provider not initialized - RETURN (NO ERROR THROW)
-    if (!this.providerInitSuccess) {
-      this.merchantLinkError = 'Provider must be initialized first';
+    // Guard: Provider and session ready check
+    if (!this.isProviderAndSessionReady()) {
+      this.merchantLinkError = 'Provider and session must be ready first';
       this.merchantLinkLoading = false;
       this.merchantLinkSuccess = false;
       return;
     }
 
     // Guard: Account key missing - RETURN (NO ERROR THROW)
-    if (!this.userPhone) {
+    if (!userPhone) {
       this.merchantLinkError = 'UserPhone (accountKey) is required';
       this.merchantLinkLoading = false;
       this.merchantLinkSuccess = false;
@@ -673,7 +824,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     }
 
     // Guard: User ID missing - RETURN (NO ERROR THROW)
-    if (!this.userId?.trim()) {
+    if (!userId?.trim()) {
       this.merchantLinkError = 'userId is required';
       this.merchantLinkLoading = false;
       this.merchantLinkSuccess = false;
@@ -688,8 +839,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     try {
       const requestPayload = {
-        accountKey: this.userPhone,
-        userId: this.userId.trim()
+        accountKey: userPhone,
+        userId: userId.trim()
       };
 
       this.logService.addStep({ actionName: 'merchantLink', request: requestPayload });
@@ -786,17 +937,21 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   async merchantUnlink() {
-    if (!this.providerInitSuccess) {
-      this.merchantUnlinkError = 'Provider must be initialized first';
+    const flowState = this.flowRunner.getFlowState();
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
+
+    if (!this.isProviderAndSessionReady()) {
+      this.merchantUnlinkError = 'Provider and session must be ready first';
       return;
     }
 
-    if (!this.userPhone) {
+    if (!userPhone) {
       this.merchantUnlinkError = 'UserPhone (accountKey) is required';
       return;
     }
 
-    if (!this.userId || !this.userId.trim()) {
+    if (!userId || !userId.trim()) {
       this.merchantUnlinkError = 'userId is required';
       return;
     }
@@ -831,14 +986,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       // Prepare request payload
       const requestPayload = {
         merchantId: (PaywallJsSdk as any).merchantId || '',
-        accountKey: this.userPhone,
-        userId: this.userId.trim(),
+        accountKey: userPhone,
+        userId: userId.trim(),
         token: this.masterpassToken
       };
 
       this.logService.addStep({
         actionName: 'merchantUnlink',
-        request: { accountKey: this.userPhone, userId: this.userId, merchantId: requestPayload.merchantId }
+        request: { accountKey: userPhone, userId: userId, merchantId: requestPayload.merchantId }
       });
 
       // Call SDK - merchantUnlink
@@ -895,22 +1050,27 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   // ========== ADD CARD ==========
   
   async addCard() {
-    if (!this.providerInitSuccess) {
-      this.addCardError = 'Provider must be initialized first';
+    const flowState = this.flowRunner.getFlowState();
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
+
+    if (!this.isProviderAndSessionReady()) {
+      this.addCardError = 'Provider and session must be ready first';
       return;
     }
 
-    if (!this.masterpassToken) {
-      this.addCardError = 'Masterpass token not found. Please start session first.';
+    const token = this.masterpassToken ?? (flowState as any).masterpassToken;
+    if (!token) {
+      this.addCardError = 'Masterpass token not found';
       return;
     }
 
-    if (!this.userPhone) {
+    if (!userPhone) {
       this.addCardError = 'UserPhone (accountKey) is required';
       return;
     }
 
-    if (!this.userId || !this.userId.trim()) {
+    if (!userId || !userId.trim()) {
       this.addCardError = 'userId is required';
       return;
     }
@@ -936,9 +1096,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     try {
       // Prepare Add Card request payload
       const addCardParams: any = {
-        token: this.masterpassToken,
-        userId: this.userId.trim(),
-        accountKey: this.userPhone,
+        token: token,
+        userId: userId.trim(),
+        accountKey: userPhone,
         accountKeyType: 'Msisdn',
         requestReferenceNumber: this.generateNumericReference(), // Must be numeric string
         cardHolderName: this.manualCardForm.cardHolderName,
@@ -1031,7 +1191,11 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   async deleteCard() {
     if (!this.cardToDelete) return;
 
-    if (!this.userPhone) {
+    const flowState = this.flowRunner.getFlowState();
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
+
+    if (!userPhone) {
       this.cardListError = 'UserPhone (accountKey) is required';
       return;
     }
@@ -1043,14 +1207,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     this.showDeleteConfirm = false;
 
     try {
-      if (!this.userId || !this.userId.trim()) {
+      if (!userId || !userId.trim()) {
         this.cardDeleteError = 'userId is required';
         return;
       }
 
       this.logService.addStep({
         actionName: 'deleteCard',
-        request: { cardAlias: this.cardToDelete.alias, accountKey: this.userPhone, userId: this.userId }
+        request: { cardAlias: this.cardToDelete.alias, accountKey: userPhone, userId: userId }
       });
 
       // Direkt SDK'yı çağır
@@ -1058,9 +1222,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       let response: any;
 
       if (typeof masterpass.removeCard === 'function') {
-        response = await masterpass.removeCard({ cardAlias: this.cardToDelete.alias, accountKey: this.userPhone });
+        response = await masterpass.removeCard({ cardAlias: this.cardToDelete.alias, accountKey: userPhone });
       } else if (typeof masterpass.deleteCard === 'function') {
-        response = await masterpass.deleteCard({ cardAlias: this.cardToDelete.alias, accountKey: this.userPhone });
+        response = await masterpass.deleteCard({ cardAlias: this.cardToDelete.alias, accountKey: userPhone });
       } else {
         throw new Error('SDK method not found. Available methods: ' + Object.keys(masterpass).join(', '));
       }
@@ -1154,9 +1318,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
 
   async payWithRegisteredCard() {
+    const flowState = this.flowRunner.getFlowState();
+    const sessionId = this.sessionId ?? flowState.sessionId;
+
     // UI Guard 1: Provider and Session check
-    if (!this.providerInitSuccess || !this.sessionSuccess) {
-      this.registeredPaymentError = 'Provider and Session must be initialized first';
+    if (!this.isProviderAndSessionReady()) {
+      this.registeredPaymentError = 'Provider and Session must be ready first';
       return;
     }
 
@@ -1183,7 +1350,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       return;
     }
 
-    if (!this.sessionId) {
+    if (!sessionId) {
       this.registeredPaymentError = 'SessionId not found';
       return;
     }
@@ -1210,7 +1377,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       // REGISTERED CARD PAYMENT - SADECE cardAlias ve cardBin kullan
       // SDK format: card objesi içinde ownerName (alias), cardData içinde cardAlias
       const requestPayload: any = {
-        sessionId: this.sessionId,
+        sessionId: sessionId,
         paymentSource: 'REGISTERED_CARD',
         paymentDetail: {
           amount: this.paymentAmount,
@@ -1322,23 +1489,28 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   async payWithManualCard() {
+    const flowState = this.flowRunner.getFlowState();
+    const sessionId = this.sessionId ?? flowState.sessionId;
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
+
     // UI Guard: Provider and Session check
-    if (!this.providerInitSuccess || !this.sessionSuccess) {
-      this.manualPaymentError = 'Provider and Session must be initialized first';
+    if (!this.isProviderAndSessionReady()) {
+      this.manualPaymentError = 'Provider and Session must be ready first';
       return;
     }
 
-    if (!this.sessionId) {
+    if (!sessionId) {
       this.manualPaymentError = 'SessionId not found';
       return;
     }
 
-    if (!this.userPhone) {
+    if (!userPhone) {
       this.manualPaymentError = 'UserPhone (accountKey) is required for registerAndPurchase';
       return;
     }
 
-    if (!this.userId || !this.userId.trim()) {
+    if (!userId || !userId.trim()) {
       this.manualPaymentError = 'UserId is required for registerAndPurchase';
       return;
     }
@@ -1380,7 +1552,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       
       // MANUAL CARD PAYMENT - registered card alanlarına BAKMA
       const requestPayload: any = {
-        sessionId: this.sessionId,
+        sessionId: sessionId,
         paymentSource: 'MANUAL_CARD',
         paymentDetail: {
           amount: this.paymentAmount,
@@ -1490,13 +1662,31 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   async registerAndPurchase(cardNumber: string) {
+    const flowState = this.flowRunner.getFlowState();
+    const sessionId = this.sessionId ?? flowState.sessionId;
+    const userPhone = this.userPhone || flowState.userPhone;
+    const userId = this.userId || flowState.userId;
+
+    if (!sessionId) {
+      this.manualPaymentError = 'SessionId not found';
+      return;
+    }
+    if (!userPhone) {
+      this.manualPaymentError = 'UserPhone not found';
+      return;
+    }
+    if (!userId?.trim()) {
+      this.manualPaymentError = 'UserId not found';
+      return;
+    }
+
     try {
       // Prepare registerAndPurchase request payload
       const requestPayload: any = {
-        sessionId: this.sessionId!,
-        accountKey: this.userPhone,
+        sessionId: sessionId,
+        accountKey: userPhone,
         accountKeyType: 'Msisdn',
-        merchantUserId: this.userId.trim(),
+        merchantUserId: userId.trim(),
         paymentDetail: {
           amount: this.paymentAmount,
           currencyId: 1,

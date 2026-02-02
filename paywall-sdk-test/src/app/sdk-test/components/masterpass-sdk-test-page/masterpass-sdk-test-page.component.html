@@ -43,6 +43,12 @@
         <input type="text" [(ngModel)]="accessToken" placeholder="Enter token" class="form-control" [disabled]="sdkInitSuccess" />
       </div>
       <div class="form-group">
+        <label>
+          <input type="checkbox" [(ngModel)]="includeMasterpassSession" [disabled]="sdkInitSuccess" />
+          Include Masterpass Session (for Init with Masterpass Token)
+        </label>
+      </div>
+      <div class="form-group">
         <label>User ID: <span style="color: red;">*</span></label>
         <input type="text" [(ngModel)]="userId" placeholder="User identifier (Required)" class="form-control" required />
         <small style="color: #666; font-size: 11px;">Required for all Masterpass operations</small>
@@ -62,7 +68,7 @@
       <button 
         class="btn btn-primary" 
         (click)="initPaywallSdk()" 
-        [disabled]="!accessToken.trim() || sdkInitLoading || sdkInitSuccess"
+        [disabled]="!accessToken.trim() || sdkInitLoading || initWithMasterpassTokenLoading || sdkInitSuccess"
       >
         <span *ngIf="sdkInitLoading">⏳ Loading...</span>
         <span *ngIf="!sdkInitLoading">Init Paywall SDK</span>
@@ -74,6 +80,19 @@
         {{ sdkInitSuccess ? '✔ Success' : (sdkInitError ? '✖ Failed' : '○ Pending') }}
       </span>
     </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-primary" 
+        (click)="initPaywallWithMasterpassToken()" 
+        [disabled]="!accessToken.trim() || sdkInitLoading || initWithMasterpassTokenLoading || sdkInitSuccess"
+      >
+        <span *ngIf="initWithMasterpassTokenLoading">⏳ Loading...</span>
+        <span *ngIf="!initWithMasterpassTokenLoading">Init Paywall with Masterpass Token</span>
+      </button>
+      <!-- Aynı badge ve response section'ı paylaşıyor -->
+    </div>
+
     <div class="response-section" *ngIf="sdkInitResponse">
       <button class="toggle-btn" (click)="toggleResponseExpanded('sdkInitResponseExpanded')">
         {{ sdkInitResponseExpanded ? '▼' : '▶' }} Response JSON
@@ -85,7 +104,7 @@
       <button 
         class="btn btn-primary" 
         (click)="startSession()" 
-        [disabled]="!sdkInitSuccess || sessionLoading || sessionSuccess"
+        [disabled]="!sdkInitSuccess || sessionLoading || initWithMasterpassTokenLoading || sessionSuccess"
       >
         <span *ngIf="sessionLoading">⏳ Loading...</span>
         <span *ngIf="!sessionLoading">Start Session</span>
@@ -118,7 +137,7 @@
       <button 
         class="btn btn-primary" 
         (click)="initMasterpassProvider()" 
-        [disabled]="!sessionSuccess || providerInitLoading || providerInitSuccess"
+        [disabled]="!sessionSuccess || providerInitLoading || initWithMasterpassTokenLoading || providerInitSuccess"
       >
         <span *ngIf="providerInitLoading">⏳ Loading...</span>
         <span *ngIf="!providerInitLoading">Init Masterpass Provider</span>
@@ -146,7 +165,7 @@
       <button 
         class="btn btn-action" 
         (click)="accountAccess()" 
-        [disabled]="!providerInitSuccess || cardListLoading"
+        [disabled]="!isProviderAndSessionReady() || cardListLoading"
       >
         <span *ngIf="cardListLoading">⏳ Loading...</span>
         <span *ngIf="!cardListLoading">Account Access (Card List)</span>
@@ -196,7 +215,7 @@
       <button 
         class="btn btn-action" 
         (click)="merchantLink()" 
-        [disabled]="!providerInitSuccess || merchantLinkLoading"
+        [disabled]="!isProviderAndSessionReady() || merchantLinkLoading"
       >
         <span *ngIf="merchantLinkLoading">⏳ Loading...</span>
         <span *ngIf="!merchantLinkLoading">Merchant Link</span>
@@ -219,7 +238,7 @@
       <button 
         class="btn btn-action" 
         (click)="merchantUnlink()" 
-        [disabled]="!providerInitSuccess || merchantUnlinkLoading"
+        [disabled]="!isProviderAndSessionReady() || merchantUnlinkLoading"
       >
         <span *ngIf="merchantUnlinkLoading">⏳ Loading...</span>
         <span *ngIf="!merchantUnlinkLoading">Merchant Unlink</span>
@@ -368,7 +387,7 @@
         <button 
           class="btn btn-payment" 
           (click)="payWithRegisteredCard()" 
-          [disabled]="!providerInitSuccess || !sessionSuccess || cards.length === 0 || !selectedRegisteredCard || registeredPaymentLoading"
+          [disabled]="!isProviderAndSessionReady() || cards.length === 0 || !selectedRegisteredCard || registeredPaymentLoading"
         >
           <span *ngIf="registeredPaymentLoading">⏳ Processing...</span>
           <span *ngIf="!registeredPaymentLoading">Pay With Registered Card</span>
@@ -427,7 +446,7 @@
           <button 
             class="btn btn-action" 
             (click)="addCard()" 
-            [disabled]="!providerInitSuccess || !sessionSuccess || addCardLoading"
+            [disabled]="!isProviderAndSessionReady() || addCardLoading"
             style="margin-bottom: 0;"
           >
             <span *ngIf="addCardLoading">⏳ Kaydediliyor...</span>
@@ -457,7 +476,7 @@
         <button 
           class="btn btn-payment" 
           (click)="payWithManualCard()" 
-          [disabled]="!providerInitSuccess || !sessionSuccess || manualPaymentLoading"
+          [disabled]="!isProviderAndSessionReady() || manualPaymentLoading"
         >
           <span *ngIf="manualPaymentLoading">⏳ Processing...</span>
           <span *ngIf="!manualPaymentLoading">Pay With Manual Card</span>
