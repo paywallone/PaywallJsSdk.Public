@@ -10507,13 +10507,23 @@
 						},
 					});
 				}
+				const masterpassValue = body.Masterpass ?? body.masterpass;
+				if (config.includeMasterpassSession && (masterpassValue === null || masterpassValue === undefined)) {
+					return createFailedResponse('PAYWALL', 'Could not init due to Masterpass object is null.', 'MASTERPASS_OBJECT_NULL', undefined, {
+						data: {
+							environment: config.environment,
+							sdkInitialized: false,
+							hasMasterpassSession: false,
+						},
+					});
+				}
 				const fullConfig = {
 					environment: config.environment,
 					token: body.Token.trim(),
 				};
 				initConfig(fullConfig);
 				let hasMasterpassSessionResult = false;
-				const masterpass = body.Masterpass ?? body.masterpass;
+				const masterpass = masterpassValue;
 				if (masterpass?.SessionId && masterpass?.MasterpassToken) {
 					setMasterpassSession({
 						sessionId: masterpass.SessionId,
