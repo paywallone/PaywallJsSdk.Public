@@ -8,10 +8,15 @@ declare global {
 }
 
 interface PaywallJsSdkType {
-  Init: (params: {
+  InitManual: (params: {
     merchantId: string;
     token: string;
     environment: 'dev' | 'test' | 'prod';
+  }) => Promise<any>;
+  InitAutomatic: (params: {
+    token: string;
+    environment: 'dev' | 'test' | 'prod';
+    includeMasterpassSession?: boolean;
   }) => Promise<any>;
   providers: {
     masterpass: {

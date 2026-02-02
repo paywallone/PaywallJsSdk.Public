@@ -89,12 +89,18 @@ declare global {
 }
 
 interface PaywallJsSdkType {
-  Init: (params: {
+  InitManual: (params: {
     token: string;
     environment: 'dev' | 'test' | 'prod';
     merchantId?: string;
     timeoutMs?: number;
     logLevel?: 'none' | 'error' | 'info' | 'debug';
+  }) => Promise<SdkResponse>;
+  
+  InitAutomatic: (params: {
+    token: string;
+    environment: 'dev' | 'test' | 'prod';
+    includeMasterpassSession?: boolean;
   }) => Promise<SdkResponse>;
   // ... diğer metodlar
 }
@@ -305,7 +311,7 @@ const backendData = await backendResponse.json();
 const token = backendData.body.Token;
 
 // 2. SDK'yı tek adımda başlat
-const result = await PaywallJsSdk.InitManualWithMasterpassToken({
+const result = await PaywallJsSdk.InitAutomatic({
   environment: 'test',
   token: token,
   includeMasterpassSession: true
@@ -1402,12 +1408,18 @@ interface SdkResponse<T = any> {
 }
 
 interface PaywallJsSdkType {
-  Init: (params: {
+  InitManual: (params: {
     token: string;
     environment: 'dev' | 'test' | 'prod';
     merchantId?: string;
     timeoutMs?: number;
     logLevel?: 'none' | 'error' | 'info' | 'debug';
+  }) => Promise<SdkResponse>;
+  
+  InitAutomatic: (params: {
+    token: string;
+    environment: 'dev' | 'test' | 'prod';
+    includeMasterpassSession?: boolean;
   }) => Promise<SdkResponse>;
   
   ExternalService: {
