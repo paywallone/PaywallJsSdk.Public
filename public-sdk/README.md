@@ -252,7 +252,6 @@ Backend'den alınan temp token ile SDK'yı tek adımda başlatır. Opsiyonel ola
 |------|-------------|-------------------------|
 | 1 | `Init()` - SDK başlat | `InitWithMasterpassToken()` - Hepsi bir arada |
 | 2 | `startSession()` - Session oluştur | ✅ Otomatik (backend'den gelir) |
-| 3 | `providers.masterpass.init()` - Provider hazırla | ✅ Otomatik çağrılır |
 
 **Parametreler:**
 
