@@ -110,7 +110,7 @@ export {};
 
 ```typescript
 // 1. SDK'yı initialize et
-await PaywallJsSdk.Init({
+await PaywallJsSdk.InitManual({
   environment: 'test',
   token: 'TOKEN_FROM_MERCHANT_BACKEND'
 });
@@ -171,7 +171,7 @@ if (payment.success && payment.data.status === 'SUCCESS') {
 
 ### 3.2. Temel Ödeme Akışı
 
-1. **SDK Initialization**: `PaywallJsSdk.Init()` ile SDK'yı başlatın
+1. **SDK Initialization**: `PaywallJsSdk.InitManual()` ile SDK'yı başlatın
 2. **Session Start**: `PaywallJsSdk.ExternalService.Masterpass.startSession()` ile session oluşturun
 3. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
 4. **Payment**: `PaywallJsSdk.payment.init()` veya `PaywallJsSdk.payment.registerAndPurchase()` ile ödeme yapın
@@ -183,7 +183,7 @@ if (payment.success && payment.data.status === 'SUCCESS') {
 
 ### 4.1. Initialization
 
-#### `PaywallJsSdk.Init(config)`
+#### `PaywallJsSdk.InitManual(config)`
 
 SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config validation ve state set eder.
 
@@ -206,7 +206,7 @@ SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config valid
 **Örnek:**
 
 ```typescript
-const response = await PaywallJsSdk.Init({
+const response = await PaywallJsSdk.InitManual({
   environment: 'test',
   token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
   logLevel: 'debug'
@@ -236,7 +236,7 @@ if (response.success) {
 
 ---
 
-#### `PaywallJsSdk.InitWithMasterpassToken(config)`
+#### `PaywallJsSdk.InitAutomatic(config)`
 
 Backend'den alınan temp token ile SDK'yı tek adımda başlatır. Opsiyonel olarak Masterpass session bilgilerini de otomatik olarak hazır hale getirir.
 
@@ -248,9 +248,9 @@ Backend'den alınan temp token ile SDK'yı tek adımda başlatır. Opsiyonel ola
 
 **Normal akıştan farkı:**
 
-| Adım | Normal Akış | InitWithMasterpassToken |
-|------|-------------|-------------------------|
-| 1 | `Init()` - SDK başlat | `InitWithMasterpassToken()` - Hepsi bir arada |
+| Adım | Normal Akış (InitManual) | InitAutomatic |
+|------|--------------------------|---------------|
+| 1 | `InitManual()` - SDK başlat | `InitAutomatic()` - Hepsi bir arada |
 | 2 | `startSession()` - Session oluştur | ✅ Otomatik (backend'den gelir) |
 
 **Parametreler:**
@@ -305,7 +305,7 @@ const backendData = await backendResponse.json();
 const token = backendData.body.Token;
 
 // 2. SDK'yı tek adımda başlat
-const result = await PaywallJsSdk.InitWithMasterpassToken({
+const result = await PaywallJsSdk.InitManualWithMasterpassToken({
   environment: 'test',
   token: token,
   includeMasterpassSession: true
@@ -843,7 +843,7 @@ Kart kaydı ve ödeme işlemini tek seferde yapar. Bu fonksiyon hem kart kaydı 
 
 ```typescript
 // 1. SDK'yı initialize et
-await PaywallJsSdk.Init({
+await PaywallJsSdk.InitManual({
   environment: 'test',
   token: 'TOKEN_FROM_MERCHANT_BACKEND'
 });
@@ -1146,7 +1146,7 @@ if (result.data.actionType === 'BANK_OTP') {
 async function completePaymentFlow() {
   try {
     // 1. SDK Initialization
-    const initResult = await PaywallJsSdk.Init({
+    const initResult = await PaywallJsSdk.InitManual({
       environment: 'test',
       token: await getTokenFromBackend()
     });
@@ -1234,7 +1234,7 @@ async function completePaymentFlow() {
 async function merchantLinkFlow() {
   try {
     // 1. SDK Init
-    await PaywallJsSdk.Init({
+    await PaywallJsSdk.InitManual({
       environment: 'test',
       token: await getTokenFromBackend()
     });
@@ -1298,7 +1298,7 @@ async function merchantLinkFlow() {
 async function registerAndPurchaseFlow() {
   try {
     // 1. SDK Init
-    await PaywallJsSdk.Init({
+    await PaywallJsSdk.InitManual({
       environment: 'test',
       token: await getTokenFromBackend()
     });
@@ -1530,7 +1530,7 @@ SDK, farklı log seviyeleri destekler:
 **Örnek:**
 
 ```typescript
-await PaywallJsSdk.Init({
+await PaywallJsSdk.InitManual({
   environment: 'test',
   token: 'TOKEN',
   logLevel: 'debug' // Debug mode aktif

@@ -99,7 +99,7 @@ export class SdkTestComponent implements OnInit {
 
   /**
    * Step 1: Core SDK Init
-   * PaywallJsSdk.Init() - Core SDK initialization
+   * PaywallJsSdk.InitManual() - Core SDK initialization
    * SADECE token alır, network request YOK
    */
   async initCoreSdk() {
@@ -114,8 +114,8 @@ export class SdkTestComponent implements OnInit {
       this.log('Environment: ' + this.environment);
       this.log('Token: ' + this.maskToken(this.accessToken));
 
-      // Call SDK - Core init (using Init with capital I, as per SDK API)
-      const response = await PaywallJsSdk.Init({
+      // Call SDK - Core init (using InitManual)
+      const response = await PaywallJsSdk['InitManual']({
         environment: this.environment,
         token: this.accessToken,
         logLevel: 'debug'

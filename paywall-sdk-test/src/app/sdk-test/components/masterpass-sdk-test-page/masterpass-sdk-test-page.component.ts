@@ -27,7 +27,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   sdkInitResponse: any = null;
   sdkInitResponseExpanded = false;
   includeMasterpassSession = true;
-  initWithMasterpassTokenLoading = false;
+  initAutomaticLoading = false;
 
   sessionLoading = false;
   sessionSuccess = false;
@@ -74,7 +74,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   // OTP handling
   otpRetryCount = 0;
   maxOtpRetries = 3;
-  
+
   // OTP Verify State
   otpVerifyLoading = false;
   otpVerifySuccess = false;
@@ -104,7 +104,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   selectedCardIndex: number = -1; // For dropdown binding - use index instead of JSON
   paymentAmount = 100;
   force3D = false;
-  
+
   // Product List
   products: Array<{
     productId?: string;
@@ -168,7 +168,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   ngOnInit() {
     this.loadLogs();
     this.updateCurrentState();
-    
+
     // Initialize customer form with default values (phone excluded)
     this.customerForm = {
       fullName: 'Test User',
@@ -176,7 +176,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       email: 'test@example.com',
       identityNumber: '12345678901'
     };
-    
+
     // Subscribe to OTP result from dialog
     this.flowRunner.otpResult$.subscribe((otp) => {
       this.onOtpSubmit(otp);
@@ -185,7 +185,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
   // ========== A) SDK / SESSION CONTROL PANEL ==========
 
-  /** InitWithMasterpassToken veya normal akış sonrası: provider + session hazır mı (flowState veya component state) */
+  /** InitAutomatic veya normal akış sonrası: provider + session hazır mı (flowState veya component state) */
   isProviderAndSessionReady(): boolean {
     const fs = this.flowRunner.getFlowState();
     const providerOk = this.providerInitSuccess || fs.providerInitialized === true;
@@ -205,7 +205,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     this.sdkInitResponse = null;
 
     try {
-      const response = await PaywallJsSdk.Init({
+      const response = await PaywallJsSdk['InitManual']({
         environment: this.environment,
         token: this.accessToken,
         logLevel: 'debug'
@@ -214,9 +214,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       this.sdkInitResponse = response;
       this.logService.addStep({
         actionName: 'initPaywallSdk',
-        request: { 
-          environment: this.environment, 
-          token: this.logService.maskSensitiveData({ token: this.accessToken }).token 
+        request: {
+          environment: this.environment,
+          token: this.logService.maskSensitiveData({ token: this.accessToken }).token
         },
         response: this.logService.maskSensitiveData(response),
         normalizedResult: this.logService.normalizeResponse(response)
@@ -247,29 +247,29 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   /**
-   * Init Paywall SDK with Masterpass Token (temp token from backend).
+   * Init Paywall SDK Automatic (temp token from backend).
    * Token = Access Token alanındaki değer (backend temptoken/sdk cevabından).
    * Başarıda hasMasterpassSession true ise session ayrıca başlatılmaz; Init Masterpass Provider otomatik çağrılır.
    */
-  async initPaywallWithMasterpassToken() {
+  async initPaywallAutomatic() {
     if (!this.accessToken.trim()) {
       this.sdkInitError = 'Token is required';
       return;
     }
 
-    this.initWithMasterpassTokenLoading = true;
+    this.initAutomaticLoading = true;
     this.sdkInitSuccess = false;
     this.sdkInitError = null;
     this.sdkInitResponse = null;
 
     try {
       const sdk = PaywallJsSdk as any;
-      if (typeof sdk.InitWithMasterpassToken !== 'function') {
-        this.sdkInitError = 'InitWithMasterpassToken is not available. Ensure SDK has been built with this method and re-link: in SDK folder run "npm run build", then here run "npm run reinstall-sdk".';
+      if (typeof sdk['InitAutomatic'] !== 'function') {
+        this.sdkInitError = 'InitAutomatic is not available. Ensure SDK has been built with this method and re-link: in SDK folder run "npm run build", then here run "npm run reinstall-sdk".';
         return;
       }
-      
-      const response = await sdk.InitWithMasterpassToken({
+
+      const response = await sdk['InitAutomatic']({
         environment: this.environment,
         token: this.accessToken.trim(),
         includeMasterpassSession: this.includeMasterpassSession,
@@ -277,7 +277,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       this.sdkInitResponse = response;
       this.logService.addStep({
-        actionName: 'initPaywallWithMasterpassToken',
+        actionName: 'initPaywallAutomatic',
         request: {
           environment: this.environment,
           token: this.logService.maskSensitiveData({ token: this.accessToken }).token,
@@ -300,7 +300,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       if (!ok) {
         this.sdkInitSuccess = false;
-        this.sdkInitError = response?.message || data?.message || 'InitWithMasterpassToken failed';
+        this.sdkInitError = response?.message || data?.message || 'InitAutomatic failed';
         return;
       }
 
@@ -324,7 +324,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         // userId ve userPhone da response'tan set et (form alanları boşsa bunlar kullanılır)
         const responseUserId = masterpass.UserId || masterpass.userId;
         const responseUserPhone = masterpass.UserPhone || masterpass.userPhone;
-        
+
         // Component state: response'tan geleni tercih et, yoksa form alanını kullan
         if (responseUserId && !this.userId) {
           this.userId = responseUserId;
@@ -337,7 +337,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         const finalUserId = this.userId || responseUserId || '';
         const finalUserPhone = this.userPhone || responseUserPhone || '';
         const sid = this.sessionId || '';
-        
+
         const flowUpdate = {
           environment: this.environment,
           currentToken,
@@ -346,13 +346,13 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           userId: finalUserId,
           userPhone: finalUserPhone,
         };
-        
+
         this.flowRunner.updateFlowState(flowUpdate);
-        
+
         // SDK zorunlu: providers.masterpass.init() çağır
         try {
           const providerInitResponse = await PaywallJsSdk.providers.masterpass.init();
-          
+
           if (providerInitResponse.success === true && providerInitResponse.data?.masterpassSdkInitialized === true) {
             this.providerInitSuccess = true;
             this.providerInitError = null;
@@ -360,23 +360,23 @@ export class MasterpassSdkTestPageComponent implements OnInit {
             this.flowRunner.updateFlowState({ providerInitialized: true });
           }
         } catch (providerError: any) {
-          this.providerInitError = providerError.message || 'Provider init failed after InitWithMasterpassToken';
+          this.providerInitError = providerError.message || 'Provider init failed after InitAutomatic';
         }
       } else {
         // Masterpass yok: sadece SDK init state
         this.flowRunner.updateFlowState({ environment: this.environment, currentToken });
       }
-      
+
       this.cdr.detectChanges();
     } catch (error: any) {
       this.sdkInitSuccess = false;
-      this.sdkInitError = error.message || 'InitWithMasterpassToken failed';
+      this.sdkInitError = error.message || 'InitAutomatic failed';
       this.logService.addStep({
-        actionName: 'initPaywallWithMasterpassToken',
+        actionName: 'initPaywallAutomatic',
         error: error.message || 'Unknown error',
       });
     } finally {
-      this.initWithMasterpassTokenLoading = false;
+      this.initAutomaticLoading = false;
       this.loadLogs();
       this.updateCurrentState();
     }
@@ -549,12 +549,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       // 🚀 SDK ÇAĞRISI
       const masterpass = PaywallJsSdk.providers.masterpass as any;
-      
+
       // SDK metod kontrolü
       if (!masterpass) {
         throw new Error('Masterpass provider not initialized. Please initialize provider first.');
       }
-      
+
       // Metod isimlerini dene
       let response: any;
       if (typeof masterpass.accountAccess === 'function') {
@@ -583,9 +583,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       // 🔐 OTP ALGILANDIĞINDA YAPILACAK TEK ŞEY
       // Kontrol: responseCode 5001/5008 VEYA ACTION_REQUIRED + OTP actionType
-      const needsOTP = (responseCode === '5001' || responseCode === '5008') || 
+      const needsOTP = (responseCode === '5001' || responseCode === '5008') ||
                        (status === 'ACTION_REQUIRED' && (actionType === 'OTP' || actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP_REQUIRED'));
-      
+
       if (needsOTP && otpToken) {
         // Set OTP blocking state
         this.flowRunner.updateFlowState({
@@ -593,13 +593,13 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           pendingAction: 'accountAccess',
           otpToken: otpToken
         });
-        
+
         // Open OTP popup
         this.flowRunner.otpRequired$.next({
           title: actionType === 'BANK_OTP' ? 'Bank OTP Required' : 'OTP Required',
           message: result?.description || response?.message || 'Please enter OTP code sent to your phone'
         });
-        
+
         this.cardListLoading = false;
         this.cardListSuccess = false;
         this.cardListError = null;
@@ -650,14 +650,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       // 🧪 catch BLOĞU (SDK ÇAĞRISI SONRASI HATA)
       this.cardListSuccess = false;
       this.cardListError = error.message || 'Get card list failed';
-      
+
       this.logService.addStep({ actionName: 'accountAccess', error: error.message });
     } finally {
       // ✅ HER DURUMDA LOADING STATE RESET
       this.cardListLoading = false;
       this.loadLogs();
       this.updateCurrentState();
-      
+
       // ❌ ASLA retry
       // ❌ ASLA başka SDK çağrısı
     }
@@ -736,10 +736,10 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         this.otpVerifySuccess = true;
         this.otpVerifyError = null;
         this.otpRetryCount = 0;
-        
+
         this.loadLogs();
         this.updateCurrentState();
-        
+
         // 🔁 OTP SONRASI DAVRANIŞ
         // HİÇBİR şey otomatik tetiklenmez
         // Kullanıcı tekrar AccountAccess'e veya MerchantLink'e basar
@@ -772,19 +772,19 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     } catch (error: any) {
       this.otpVerifySuccess = false;
       this.otpVerifyError = error.message || 'OTP verification failed';
-      
+
       this.logService.addStep({
         actionName: 'verifyOtp',
         error: error.message || 'Unknown error'
       });
-      
+
       this.flowRunner.updateFlowState({
         awaitingOtp: false,
         pendingAction: null,
         otpToken: null
       });
       this.otpRetryCount = 0;
-      
+
       this.loadLogs();
       this.updateCurrentState();
     } finally {
@@ -847,12 +847,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       // 🚀 SDK ÇAĞRISI
       const masterpass = PaywallJsSdk.providers.masterpass as any;
-      
+
       // SDK metod kontrolü
       if (!masterpass) {
         throw new Error('Masterpass provider not initialized. Please initialize provider first.');
       }
-      
+
       // Metod isimlerini dene
       let response: any;
       if (typeof masterpass.merchantLink === 'function') {
@@ -879,9 +879,9 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       // 🔐 OTP ALGILANDIĞINDA YAPILACAK TEK ŞEY
       // Kontrol: responseCode 5001/5008 VEYA ACTION_REQUIRED + OTP actionType
-      const needsOTP = (responseCode === '5001' || responseCode === '5008') || 
+      const needsOTP = (responseCode === '5001' || responseCode === '5008') ||
                        (status === 'ACTION_REQUIRED' && (actionType === 'OTP' || actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP_REQUIRED'));
-      
+
       if (needsOTP && otpToken) {
         // Set OTP blocking state
         this.flowRunner.updateFlowState({
@@ -889,13 +889,13 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           pendingAction: 'merchantLink',
           otpToken: otpToken
         });
-        
+
         // Open OTP popup
         this.flowRunner.otpRequired$.next({
           title: actionType === 'BANK_OTP' ? 'Bank OTP Required' : 'OTP Required',
           message: result?.description || response?.message || 'Please enter OTP code sent to your phone'
         });
-        
+
         this.merchantLinkLoading = false;
         this.merchantLinkSuccess = false;
         this.merchantLinkError = null;
@@ -923,14 +923,14 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       // 🧪 catch BLOĞU (SDK ÇAĞRISI SONRASI HATA)
       this.merchantLinkSuccess = false;
       this.merchantLinkError = error.message || 'Merchant link failed';
-      
+
       this.logService.addStep({ actionName: 'merchantLink', error: error.message });
     } finally {
       // ✅ HER DURUMDA LOADING STATE RESET
       this.merchantLinkLoading = false;
       this.loadLogs();
       this.updateCurrentState();
-      
+
       // ❌ ASLA retry
       // ❌ ASLA başka SDK çağrısı
     }
@@ -963,7 +963,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     // Confirm dialog
     const confirmed = await new Promise<boolean>((resolve) => {
-      this.flowRunner.confirmRequired$.next({ 
+      this.flowRunner.confirmRequired$.next({
         title: 'Unlink Merchant',
         message: 'Are you sure you want to unlink the account from merchant?'
       });
@@ -1048,7 +1048,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   // ========== ADD CARD ==========
-  
+
   async addCard() {
     const flowState = this.flowRunner.getFlowState();
     const userPhone = this.userPhone || flowState.userPhone;
@@ -1077,7 +1077,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     // Validate card form
     const cardNumber = this.manualCardForm.cardNumber.replace(/\s/g, '');
-    if (!cardNumber || !this.manualCardForm.cardHolderName || !this.manualCardForm.expiryMonth || 
+    if (!cardNumber || !this.manualCardForm.cardHolderName || !this.manualCardForm.expiryMonth ||
         !this.manualCardForm.expiryYear || !this.manualCardForm.cvv) {
       this.addCardError = 'All card fields are required';
       return;
@@ -1140,12 +1140,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       const actionType = response?.actionType;
       const status = response?.status;
       const otpToken = result?.token || response?.data?.token;
-      
+
       // 🔐 OTP ALGILANDIĞINDA YAPILACAK TEK ŞEY
       // Kontrol: responseCode 5001/5008 VEYA ACTION_REQUIRED + OTP actionType
-      const needsOTP = (responseCode === '5001' || responseCode === '5008') || 
+      const needsOTP = (responseCode === '5001' || responseCode === '5008') ||
                        (status === 'ACTION_REQUIRED' && (actionType === 'OTP' || actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP_REQUIRED'));
-      
+
       if (needsOTP && otpToken) {
         // Set OTP blocking state
         this.flowRunner.updateFlowState({
@@ -1153,13 +1153,13 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           pendingAction: 'addCard' as any,
           otpToken: otpToken
         });
-        
+
         // Open OTP popup
         this.flowRunner.otpRequired$.next({
           title: actionType === 'BANK_OTP' ? 'Bank OTP Required' : 'OTP Required',
           message: result?.description || response?.message || 'Please enter OTP code sent to your phone'
         });
-        
+
         this.addCardLoading = false;
         this.addCardSuccess = false;
         this.addCardError = null;
@@ -1279,7 +1279,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     // Convert to number if string
     const index = typeof cardIndex === 'string' ? parseInt(cardIndex, 10) : cardIndex;
-    
+
     if (isNaN(index) || index < 0 || index >= this.cards.length) {
       this.selectedRegisteredCard = null;
       this.selectedCardIndex = -1;
@@ -1287,19 +1287,19 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     }
 
     const card = this.cards[index];
-    
+
     // Get cardAlias - try multiple sources
     const cardAlias = card['cardAlias'] || card.alias || (card as any).originalCard?.cardAlias;
     const cardBin = card.cardBin || (card as any).originalCard?.cardBin || '';
     const uniqueCardNumber = card.uniqueCardNumber || (card as any).originalCard?.uniqueCardNumber;
-    
+
     if (!cardAlias) {
       this.selectedRegisteredCard = null;
       this.selectedCardIndex = -1;
       this.registeredPaymentError = 'Card selection error: cardAlias is missing in card data';
       return;
     }
-    
+
     this.selectedRegisteredCard = {
       cardAlias: cardAlias,
       cardBin: cardBin,
@@ -1310,7 +1310,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
   getCardDisplayLabel(card: CardInfo): string {
     if (!card) return 'Unknown Card';
-    
+
     const masked = card.cardMasked || card.maskedCardNumber || card.maskedNumber || (card as any).originalCard?.maskedCardNumber || '****';
     const bin = card.cardBin || (card as any).originalCard?.cardBin || '';
     return bin ? `${masked} (${bin})` : masked;
@@ -1373,7 +1373,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       if (productTotal > 0) {
         this.paymentAmount = productTotal;
       }
-      
+
       // REGISTERED CARD PAYMENT - SADECE cardAlias ve cardBin kullan
       // SDK format: card objesi içinde ownerName (alias), cardData içinde cardAlias
       const requestPayload: any = {
@@ -1449,20 +1449,20 @@ export class MasterpassSdkTestPageComponent implements OnInit {
             pendingAction: 'payWithRegisteredCard' as any,
             otpToken: otpToken
           });
-          
+
           // Open OTP popup
           this.flowRunner.otpRequired$.next({
             title: 'OTP Required',
             message: result?.description || 'Please enter OTP code sent to your phone'
           });
-          
+
           this.registeredPaymentLoading = false;
           this.loadLogs();
           this.updateCurrentState();
           return; // STOP - no auto-retry
         }
       }
-      
+
       // Check 3D Secure
       if (has3DUrl) {
         this.registeredPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
@@ -1526,11 +1526,11 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       if (productTotal > 0) {
         this.paymentAmount = productTotal;
       }
-      
+
       // Clean card number (remove spaces)
       const cardNumber = this.manualCardForm.cardNumber.replace(/\s/g, '');
-      
-      if (!cardNumber || !this.manualCardForm.cardHolderName || !this.manualCardForm.expiryMonth || 
+
+      if (!cardNumber || !this.manualCardForm.cardHolderName || !this.manualCardForm.expiryMonth ||
           !this.manualCardForm.expiryYear || !this.manualCardForm.cvv) {
         this.manualPaymentError = 'All card fields are required';
         this.manualPaymentLoading = false;
@@ -1549,7 +1549,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         return;
       }
 
-      
+
       // MANUAL CARD PAYMENT - registered card alanlarına BAKMA
       const requestPayload: any = {
         sessionId: sessionId,
@@ -1606,7 +1606,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         response: maskedResponse,
         normalizedResult: normalized
       });
-      
+
       // Extract result and responseCode
       const result = (response as any).result || (response as any).data?.result;
       const responseCode = result?.responseCode;
@@ -1622,20 +1622,20 @@ export class MasterpassSdkTestPageComponent implements OnInit {
             pendingAction: 'payWithManualCard' as any,
             otpToken: otpToken
           });
-          
+
           // Open OTP popup
           this.flowRunner.otpRequired$.next({
             title: 'OTP Required',
             message: result?.description || 'Please enter OTP code sent to your phone'
           });
-          
+
           this.manualPaymentLoading = false;
           this.loadLogs();
           this.updateCurrentState();
           return; // STOP - no auto-retry
         }
       }
-      
+
       // Check 3D Secure
       if (has3DUrl) {
         this.manualPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
@@ -1747,7 +1747,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       const statusCode = responseAny.statusCode || responseAny.data?.statusCode;
       const has3DUrl = result?.url3d || responseAny.data?.redirectUrl;
       const otpToken = result?.token || responseAny.data?.token || responseAny.token;
-      
+
       // Debug: Log response structure
       console.log('[registerAndPurchase] Response structure:', {
         hasResult: !!result,
@@ -1758,7 +1758,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         responseKeys: Object.keys(responseAny),
         resultKeys: result ? Object.keys(result) : null
       });
-      
+
       // Check OTP requirement first (5010 for payment)
       // OTP can come from: result.responseCode OR statusCode 202 with responseCode 5010
       if ((responseCode === '5010' || (statusCode === 202 && result?.responseCode === '5010')) && otpToken) {
@@ -1768,23 +1768,23 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           pendingAction: 'registerAndPurchase' as any,
           otpToken: otpToken
         });
-        
+
         // Open OTP popup
         this.flowRunner.otpRequired$.next({
           title: 'Bank OTP Required',
           message: result?.description || responseAny.data?.message || responseAny.message || 'Please enter OTP code sent to your phone'
         });
-        
+
         this.manualPaymentLoading = false;
         this.loadLogs();
         this.updateCurrentState();
         return; // STOP - no auto-retry, wait for OTP verification
       }
-      
+
       // Check SDK response format
       if (response.success && response.data) {
         const data = response.data;
-        
+
         if (data.status === 'SUCCESS') {
           // Payment and card registration successful
           this.manualPaymentSuccess = true;
@@ -1802,12 +1802,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
                 pendingAction: 'registerAndPurchase' as any,
                 otpToken: otpToken
               });
-              
+
               this.flowRunner.otpRequired$.next({
                 title: 'Bank OTP Required',
                 message: data.message || 'Please enter OTP code sent to your phone'
               });
-              
+
               this.manualPaymentLoading = false;
               this.loadLogs();
               this.updateCurrentState();
@@ -1828,12 +1828,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
             pendingAction: 'registerAndPurchase' as any,
             otpToken: otpToken
           });
-          
+
           this.flowRunner.otpRequired$.next({
             title: 'Bank OTP Required',
             message: result?.description || 'Please enter OTP code sent to your phone'
           });
-          
+
           this.manualPaymentLoading = false;
           this.loadLogs();
           this.updateCurrentState();
@@ -1886,11 +1886,11 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   }
 
   // ========== PRODUCT MANAGEMENT ==========
-  
+
   calculateProductTotal(): number {
     return this.products.reduce((sum, p) => sum + (p.productAmount || p.totalPrice || 0), 0);
   }
-  
+
   updateProductTotal(index: number) {
     const product = this.products[index];
     if (product.price && product.quantity) {
@@ -1907,7 +1907,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     // Update payment amount to match product total
     this.paymentAmount = this.calculateProductTotal();
   }
-  
+
   addProduct() {
     this.products.push({
       productId: 'PRODUCT-' + (this.products.length + 1),
@@ -1922,12 +1922,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     });
     this.updateProductTotal(this.products.length - 1);
   }
-  
+
   removeProduct(index: number) {
     this.products.splice(index, 1);
     this.paymentAmount = this.calculateProductTotal();
   }
-  
+
   updatePaymentAmountFromProducts() {
     this.paymentAmount = this.calculateProductTotal();
   }

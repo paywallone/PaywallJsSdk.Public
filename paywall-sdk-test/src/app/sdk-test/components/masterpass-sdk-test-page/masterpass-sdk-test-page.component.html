@@ -1,12 +1,12 @@
 <div class="test-page-container">
   <h1>Paywall JS SDK - Masterpass Test Harness</h1>
-  
+
   <!-- Error Codes Modal -->
   <app-error-codes-modal></app-error-codes-modal>
-  
+
   <!-- Error Action Guide Modal -->
   <app-error-action-guide-modal></app-error-action-guide-modal>
-  
+
   <!-- Dialogs -->
   <app-otp-dialog></app-otp-dialog>
   <app-confirm-dialog></app-confirm-dialog>
@@ -45,7 +45,7 @@
       <div class="form-group">
         <label>
           <input type="checkbox" [(ngModel)]="includeMasterpassSession" [disabled]="sdkInitSuccess" />
-          Include Masterpass Session (for Init with Masterpass Token)
+          Include Masterpass Session (for Init Automatic)
         </label>
       </div>
       <div class="form-group">
@@ -65,16 +65,16 @@
     <h2>A) SDK / Session Control Panel</h2>
 
     <div class="action-group">
-      <button 
-        class="btn btn-primary" 
-        (click)="initPaywallSdk()" 
-        [disabled]="!accessToken.trim() || sdkInitLoading || initWithMasterpassTokenLoading || sdkInitSuccess"
+      <button
+        class="btn btn-primary"
+        (click)="initPaywallSdk()"
+        [disabled]="!accessToken.trim() || sdkInitLoading || initAutomaticLoading || sdkInitSuccess"
       >
         <span *ngIf="sdkInitLoading">⏳ Loading...</span>
         <span *ngIf="!sdkInitLoading">Init Paywall SDK</span>
       </button>
-      <span class="badge" 
-            [class.success]="sdkInitSuccess" 
+      <span class="badge"
+            [class.success]="sdkInitSuccess"
             [class.error]="sdkInitError"
             [class.pending]="!sdkInitSuccess && !sdkInitError">
         {{ sdkInitSuccess ? '✔ Success' : (sdkInitError ? '✖ Failed' : '○ Pending') }}
@@ -82,13 +82,13 @@
     </div>
 
     <div class="action-group">
-      <button 
-        class="btn btn-primary" 
-        (click)="initPaywallWithMasterpassToken()" 
-        [disabled]="!accessToken.trim() || sdkInitLoading || initWithMasterpassTokenLoading || sdkInitSuccess"
+      <button
+        class="btn btn-primary"
+        (click)="initPaywallAutomatic()"
+        [disabled]="!accessToken.trim() || sdkInitLoading || initAutomaticLoading || sdkInitSuccess"
       >
-        <span *ngIf="initWithMasterpassTokenLoading">⏳ Loading...</span>
-        <span *ngIf="!initWithMasterpassTokenLoading">Init Paywall with Masterpass Token</span>
+        <span *ngIf="initAutomaticLoading">⏳ Loading...</span>
+        <span *ngIf="!initAutomaticLoading">Init Paywall Automatic</span>
       </button>
       <!-- Aynı badge ve response section'ı paylaşıyor -->
     </div>
@@ -101,10 +101,10 @@
     </div>
 
     <div class="action-group">
-      <button 
-        class="btn btn-primary" 
-        (click)="startSession()" 
-        [disabled]="!sdkInitSuccess || sessionLoading || initWithMasterpassTokenLoading || sessionSuccess"
+      <button
+        class="btn btn-primary"
+        (click)="startSession()"
+        [disabled]="!sdkInitSuccess || sessionLoading || initAutomaticLoading || sessionSuccess"
       >
         <span *ngIf="sessionLoading">⏳ Loading...</span>
         <span *ngIf="!sessionLoading">Start Session</span>
@@ -113,8 +113,8 @@
         <input type="checkbox" [(ngModel)]="force3D" />
         Force 3D
       </label>
-      <span class="badge" 
-            [class.success]="sessionSuccess" 
+      <span class="badge"
+            [class.success]="sessionSuccess"
             [class.error]="sessionError"
             [class.pending]="!sessionSuccess && !sessionError">
         {{ sessionSuccess ? '✔ Success' : (sessionError ? '✖ Failed' : '○ Pending') }}
@@ -134,16 +134,16 @@
     </div>
 
     <div class="action-group">
-      <button 
-        class="btn btn-primary" 
-        (click)="initMasterpassProvider()" 
-        [disabled]="!sessionSuccess || providerInitLoading || initWithMasterpassTokenLoading || providerInitSuccess"
+      <button
+        class="btn btn-primary"
+        (click)="initMasterpassProvider()"
+        [disabled]="!sessionSuccess || providerInitLoading || initAutomaticLoading || providerInitSuccess"
       >
         <span *ngIf="providerInitLoading">⏳ Loading...</span>
         <span *ngIf="!providerInitLoading">Init Masterpass Provider</span>
       </button>
-      <span class="badge" 
-            [class.success]="providerInitSuccess" 
+      <span class="badge"
+            [class.success]="providerInitSuccess"
             [class.error]="providerInitError"
             [class.pending]="!providerInitSuccess && !providerInitError">
         {{ providerInitSuccess ? '✔ Success' : (providerInitError ? '✖ Failed' : '○ Pending') }}
@@ -162,16 +162,16 @@
     <h2>B) Account / Card Operations</h2>
 
     <div class="action-group">
-      <button 
-        class="btn btn-action" 
-        (click)="accountAccess()" 
+      <button
+        class="btn btn-action"
+        (click)="accountAccess()"
         [disabled]="!isProviderAndSessionReady() || cardListLoading"
       >
         <span *ngIf="cardListLoading">⏳ Loading...</span>
         <span *ngIf="!cardListLoading">Account Access (Card List)</span>
       </button>
-      <span class="badge" 
-            [class.success]="cardListSuccess" 
+      <span class="badge"
+            [class.success]="cardListSuccess"
             [class.error]="cardListError"
             [class.pending]="!cardListSuccess && !cardListError">
         {{ cardListSuccess ? '✔ Success' : (cardListError ? '✖ Failed' : '○ Pending') }}
@@ -212,16 +212,16 @@
     </div>
 
     <div class="action-group">
-      <button 
-        class="btn btn-action" 
-        (click)="merchantLink()" 
+      <button
+        class="btn btn-action"
+        (click)="merchantLink()"
         [disabled]="!isProviderAndSessionReady() || merchantLinkLoading"
       >
         <span *ngIf="merchantLinkLoading">⏳ Loading...</span>
         <span *ngIf="!merchantLinkLoading">Merchant Link</span>
       </button>
-      <span class="badge" 
-            [class.success]="merchantLinkSuccess" 
+      <span class="badge"
+            [class.success]="merchantLinkSuccess"
             [class.error]="merchantLinkError"
             [class.pending]="!merchantLinkSuccess && !merchantLinkError">
         {{ merchantLinkSuccess ? '✔ Success' : (merchantLinkError ? '✖ Failed' : '○ Pending') }}
@@ -235,16 +235,16 @@
     </div>
 
     <div class="action-group">
-      <button 
-        class="btn btn-action" 
-        (click)="merchantUnlink()" 
+      <button
+        class="btn btn-action"
+        (click)="merchantUnlink()"
         [disabled]="!isProviderAndSessionReady() || merchantUnlinkLoading"
       >
         <span *ngIf="merchantUnlinkLoading">⏳ Loading...</span>
         <span *ngIf="!merchantUnlinkLoading">Merchant Unlink</span>
       </button>
-      <span class="badge" 
-            [class.success]="merchantUnlinkSuccess" 
+      <span class="badge"
+            [class.success]="merchantUnlinkSuccess"
             [class.error]="merchantUnlinkError"
             [class.pending]="!merchantUnlinkSuccess && !merchantUnlinkError">
         {{ merchantUnlinkSuccess ? '✔ Success' : (merchantUnlinkError ? '✖ Failed' : '○ Pending') }}
@@ -258,8 +258,8 @@
     </div>
 
     <div class="action-group" *ngIf="cardDeleteResponse">
-      <span class="badge" 
-            [class.success]="cardDeleteSuccess" 
+      <span class="badge"
+            [class.success]="cardDeleteSuccess"
             [class.error]="cardDeleteError">
         {{ cardDeleteSuccess ? '✔ Delete Success' : '✖ Delete Failed' }}
       </span>
@@ -359,7 +359,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Card:</label>
-          <select 
+          <select
             [(ngModel)]="selectedCardIndex"
             (ngModelChange)="onRegisteredCardSelected($event)"
             class="form-control"
@@ -384,16 +384,16 @@
         </div>
       </div>
       <div class="action-group">
-        <button 
-          class="btn btn-payment" 
-          (click)="payWithRegisteredCard()" 
+        <button
+          class="btn btn-payment"
+          (click)="payWithRegisteredCard()"
           [disabled]="!isProviderAndSessionReady() || cards.length === 0 || !selectedRegisteredCard || registeredPaymentLoading"
         >
           <span *ngIf="registeredPaymentLoading">⏳ Processing...</span>
           <span *ngIf="!registeredPaymentLoading">Pay With Registered Card</span>
         </button>
-        <span class="badge" 
-              [class.success]="registeredPaymentSuccess" 
+        <span class="badge"
+              [class.success]="registeredPaymentSuccess"
               [class.error]="registeredPaymentError"
               [class.action-required]="registeredPaymentResponse?.status === 'ACTION_REQUIRED'"
               [class.pending]="!registeredPaymentSuccess && !registeredPaymentError">
@@ -443,17 +443,17 @@
           <input type="text" [(ngModel)]="manualCardForm.cardAlias" placeholder="My Card" class="form-control" />
         </div>
         <div class="form-group" style="display: flex; align-items: flex-end; padding-left: 10px;">
-          <button 
-            class="btn btn-action" 
-            (click)="addCard()" 
+          <button
+            class="btn btn-action"
+            (click)="addCard()"
             [disabled]="!isProviderAndSessionReady() || addCardLoading"
             style="margin-bottom: 0;"
           >
             <span *ngIf="addCardLoading">⏳ Kaydediliyor...</span>
             <span *ngIf="!addCardLoading">Kart Kaydet</span>
           </button>
-          <span class="badge" 
-                [class.success]="addCardSuccess" 
+          <span class="badge"
+                [class.success]="addCardSuccess"
                 [class.error]="addCardError"
                 [class.pending]="!addCardSuccess && !addCardError"
                 style="margin-left: 10px;">
@@ -473,16 +473,16 @@
         </div>
       </div>
       <div class="action-group">
-        <button 
-          class="btn btn-payment" 
-          (click)="payWithManualCard()" 
+        <button
+          class="btn btn-payment"
+          (click)="payWithManualCard()"
           [disabled]="!isProviderAndSessionReady() || manualPaymentLoading"
         >
           <span *ngIf="manualPaymentLoading">⏳ Processing...</span>
           <span *ngIf="!manualPaymentLoading">Pay With Manual Card</span>
         </button>
-        <span class="badge" 
-              [class.success]="manualPaymentSuccess" 
+        <span class="badge"
+              [class.success]="manualPaymentSuccess"
               [class.error]="manualPaymentError"
               [class.action-required]="manualPaymentResponse?.status === 'ACTION_REQUIRED'"
               [class.pending]="!manualPaymentSuccess && !manualPaymentError">
@@ -506,7 +506,7 @@
       OTP dialogs, Merchant Link confirmations, and other action flows are handled by the Flow Runner Service.
       Check the Debug Panel below to see the flow steps.
     </p>
-    
+
     <!-- OTP Verify Response -->
     <div class="response-section" *ngIf="otpVerifyResponse">
       <div class="response-header">
@@ -548,29 +548,29 @@
           <span class="log-step">Step {{ i + 1 }}</span>
           <span class="log-time">{{ log.timestamp | date:'HH:mm:ss.SSS' }}</span>
           <span class="log-action">{{ log.actionName }}</span>
-          <span class="log-status" 
-                [class.success]="log.normalizedResult?.success" 
+          <span class="log-status"
+                [class.success]="log.normalizedResult?.success"
                 [class.error]="!log.normalizedResult?.success && log.normalizedResult"
                 [class.action-required]="log.normalizedResult?.status === 'ACTION_REQUIRED'">
             {{ log.normalizedResult?.status || (log.error ? 'ERROR' : 'PENDING') }}
           </span>
         </div>
-        
+
         <div class="log-details" *ngIf="log.request">
           <strong>Request:</strong>
           <pre>{{ log.request | json }}</pre>
         </div>
-        
+
         <div class="log-details" *ngIf="log.response">
           <strong>Response:</strong>
           <pre>{{ log.response | json }}</pre>
         </div>
-        
+
         <div class="log-details" *ngIf="log.normalizedResult">
           <strong>Normalized Result:</strong>
           <pre>{{ log.normalizedResult | json }}</pre>
         </div>
-        
+
         <div class="log-details error" *ngIf="log.error">
           <strong>Error:</strong>
           <pre>{{ log.error }}</pre>

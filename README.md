@@ -78,7 +78,7 @@ Token'ı aldıktan sonra SDK'yı initialize edin:
 async function initializeSDK() {
   const tempToken = await getTempToken();
   
-  const response = await PaywallJsSdk.Init({
+  const response = await PaywallJsSdk.InitManual({
     token: tempToken,
     environment: 'dev'
   });
@@ -255,7 +255,7 @@ async function completePaymentFlow() {
   try {
     const tempToken = await getTempToken();
     
-    const initResponse = await PaywallJsSdk.Init({
+    const initResponse = await PaywallJsSdk.InitManual({
       token: tempToken,
       environment: 'dev'
     });
@@ -307,7 +307,7 @@ async function completePaymentFlow() {
 
 ## API Referansı
 
-### PaywallJsSdk.Init(params)
+### PaywallJsSdk.InitManual(params)
 SDK'yı initialize eder.
 
 **Parametreler:**

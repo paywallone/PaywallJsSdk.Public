@@ -66,14 +66,14 @@ SDK global olarak `window.PaywallJsSdk` üzerinden erişilebilir.
 
 ## SDK Fonksiyonları ve Kullanımı
 
-### 1. PaywallJsSdk.Init()
+### 1. PaywallJsSdk.InitManual()
 
 SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config validation ve state set eder.
 
 #### Request
 
 ```javascript
-await PaywallJsSdk.Init({
+await PaywallJsSdk.InitManual({
   token: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   environment: "dev", // veya "test" veya "prod"
   logLevel: "debug" // opsiyonel
@@ -809,7 +809,7 @@ await PaywallJsSdk.payment.registerAndPurchase({
 
 ```javascript
 // 1. SDK'yı initialize et
-await PaywallJsSdk.Init({
+await PaywallJsSdk.InitManual({
   environment: 'test',
   token: 'TOKEN_FROM_MERCHANT_BACKEND'
 });
@@ -884,7 +884,7 @@ if (result.success) {
 ### Senaryo 1: Temel Ödeme Akışı
 
 1. **Token Alın**: Backend'inizden geçici token alın
-2. **SDK Init**: `PaywallJsSdk.Init()` ile SDK'yı başlatın
+2. **SDK Init**: `PaywallJsSdk.InitManual()` ile SDK'yı başlatın
 3. **Session Başlat**: `PaywallJsSdk.ExternalService.Masterpass.startSession()` ile session oluşturun
 4. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
 5. **Payment**: `PaywallJsSdk.payment.init()` ile ödeme işlemini başlatın
