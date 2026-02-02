@@ -238,207 +238,103 @@ if (response.success) {
 
 #### `PaywallJsSdk.InitWithMasterpassToken(config)`
 
-Temp token'ı verify edip SDK'yı başlatır; isteğe bağlı olarak Masterpass session bilgilerini de set eder. Bu akış tek adımda token doğrulama + SDK init + (opsiyonel) Masterpass session sağlar.
+Backend'den alınan temp token ile SDK'yı tek adımda başlatır. Opsiyonel olarak Masterpass session bilgilerini de otomatik olarak hazır hale getirir.
 
-**Bu akışın ne olduğu**
+**Ne zaman kullanılır?**
 
-- Backend'den alınan **temp token** SDK'ya verilir; SDK token'ı verify eder ve config'i set eder.
-- `includeMasterpassSession === true` ise backend zaten Masterpass session bilgilerini token response'unda döndürmüş olmalıdır; SDK bu bilgileri kullanarak session state'ini set eder.
-- Sonuç: tek çağrı ile **token verify + init + (opsiyonel) Masterpass session** tamamlanır.
+- Backend'den temp token + Masterpass session bilgileri birlikte alındığında
+- SDK init, session başlatma ve provider init adımlarını tek seferde yapmak istediğinizde
+- Daha hızlı başlangıç için (3 adım yerine 1 adım)
 
-**Init() + startSession() akışından farkı**
+**Normal akıştan farkı:**
 
-| | Init() + startSession() | InitWithMasterpassToken() |
-|--|--------------------------|---------------------------|
-| Token | Sadece Init'te config'e konur, verify yok. | Token backend'de üretilir, SDK verify eder. |
-| Adımlar | 1) Init, 2) startSession (ayrı API çağrısı). | Tek adım: token verify + init + (opsiyonel) session. |
-| Session | startSession() ile ayrıca oluşturulur. | Backend temp token üretirken session da dönebilir; SDK state'e yazar. |
+| Adım | Normal Akış | InitWithMasterpassToken |
+|------|-------------|-------------------------|
+| 1 | `Init()` - SDK başlat | `InitWithMasterpassToken()` - Hepsi bir arada |
+| 2 | `startSession()` - Session oluştur | ✅ Otomatik (backend'den gelir) |
+| 3 | `providers.masterpass.init()` - Provider hazırla | ✅ Otomatik çağrılır |
 
-**Backend'in rolü**
-
-- Temp token **backend** tarafından üretilir. SDK temp token üretmez.
-- Backend: **`POST /api/paywall/temptoken/sdk`** ile temp token (ve isteğe bağlı Masterpass session) döner.
-- SDK: Sadece bu token ile `InitWithMasterpassToken` çağrısı yapar; token'ı verify eder ve dönen `data.body` ile state'i set eder.
-
-**Parametreler**
+**Parametreler:**
 
 | Parametre | Tip | Zorunlu | Açıklama |
 |-----------|-----|---------|----------|
-| `environment` | `'dev' \| 'test' \| 'prod'` | ✅ | SDK ortamı. |
-| `token` | string | ✅ | Backend'den alınan temp token (örn. `data.body.Token` veya backend'in verdiği alan). |
-| `includeMasterpassSession` | boolean | ❌ | Backend'den Masterpass session dahil temp token istendi mi? `true` ise response'ta `data.hasMasterpassSession` ve session bilgileri beklenir. |
+| `environment` | `'dev' \| 'test' \| 'prod'` | ✅ | SDK ortamı |
+| `token` | string | ✅ | Backend'den alınan temp token |
+| `includeMasterpassSession` | boolean | ❌ | `true` ise backend'den Masterpass session bilgileri de beklenir (default: `false`) |
 
-**Başarı cevabı formatı**
+**Response:**
 
 ```typescript
 {
   success: true,
-  status: 'SUCCESS',
-  source: 'SDK',
-  message: string,
   data: {
-    environment: 'dev' | 'test' | 'prod',
-    sdkInitialized: boolean,
-    hasMasterpassSession: boolean,
+    sdkInitialized: true,
+    hasMasterpassSession: true,  // includeMasterpassSession=true ise
     body: {
-      TempTokenId?: string,
-      Token?: string,
-      ExpiryDateTime?: string,
-      Scope?: string,
-      Masterpass?: {
+      Token: string,
+      Masterpass: {
         SessionId: string,
-        SessionExpiryDate: string,
         MasterpassToken: string,
-        MasterpassMerchantId?: string,
-        MasterpassTerminalGroupId?: string,
-        UserId?: string,
-        UserPhone?: string,
-        IsProd?: boolean,
-        IsTest?: boolean,
-        IsUat?: boolean
+        UserId: string,
+        UserPhone: string
       }
     }
   }
 }
 ```
 
-**Hata durumu**
-
-- `result.success === false`
-- `result.message`: hata mesajı.
-- `result.errorCode`: hata kodu (varsa).
-
-Örnek kontrol: `if (!result.success) { console.error(result.message, result.errorCode); return; }`
-
----
-
-**Örnek 1: Backend'den temp token alıp InitWithMasterpassToken çağrısı**
+**Kullanım Örneği:**
 
 ```typescript
-async function initSdkWithTempToken() {
-  // 1. Backend'den temp token al (SDK temp token üretmez)
-  const backendResponse = await fetch('https://your-api.com/api/paywall/temptoken/sdk', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      IncludeMasterpassSession: true,
-      MasterpassSession: {
-        ReferenceCode: Date.now().toString(),
-        UserId: 'USER_123',
-        UserPhone: '905437892802',
-        Force3D: false,
-        PhoneVerifiedByMerchant: true
-      }
-    })
-  });
-
-  const backendData = await backendResponse.json();
-  const token = backendData?.body?.Token ?? backendData?.Token; // Backend'in döndüğü alana göre ayarlayın
-
-  if (!token) {
-    console.error('Temp token alınamadı');
-    return;
-  }
-
-  // 2. SDK: token'ı verify et, init et, (varsa) Masterpass session set et
-  const result = await PaywallJsSdk.InitWithMasterpassToken({
-    environment: 'test',
-    token,
-    includeMasterpassSession: true
-  });
-
-  // 3. Başarı / hata kontrolü
-  if (!result.success) {
-    console.error('Init hatası:', result.message, result.errorCode);
-    return;
-  }
-
-  if (!result.data?.sdkInitialized) {
-    console.error('SDK initialize edilemedi');
-    return;
-  }
-
-  console.log('SDK hazır. Ortam:', result.data.environment);
-
-  // 4. Masterpass session geldiyse provider init ile devam
-  if (result.data?.hasMasterpassSession && result.data?.body?.Masterpass) {
-    const mp = result.data.body.Masterpass;
-    await PaywallJsSdk.providers.masterpass.init({
-      accountKey: mp.UserPhone ?? '905437892802'
-    });
-    console.log('Masterpass provider hazır. SessionId:', mp.SessionId);
-    // Buradan sonra payment.init / registerAndPurchase kullanılabilir
-  } else {
-    // Session yoksa klasik akış: startSession() çağrılabilir
-    const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-      referenceCode: Date.now().toString(),
-      userId: 'USER_123',
-      userPhone: '905437892802'
-    });
-    if (session?.data?.sessionId) {
-      await PaywallJsSdk.providers.masterpass.init({ accountKey: '905437892802' });
-    }
-  }
-}
-```
-
-**Örnek 2: Sadece temp token ile init (Masterpass session istemiyorsanız)**
-
-```typescript
-async function initSdkOnly() {
-  const backendResponse = await fetch('https://your-api.com/api/paywall/temptoken/sdk', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ IncludeMasterpassSession: false })
-  });
-  const backendData = await backendResponse.json();
-  const token = backendData?.body?.Token ?? backendData?.Token;
-
-  if (!token) {
-    console.error('Temp token alınamadı');
-    return;
-  }
-
-  const result = await PaywallJsSdk.InitWithMasterpassToken({
-    environment: 'test',
-    token,
-    includeMasterpassSession: false
-  });
-
-  if (!result.success) {
-    console.error(result.message, result.errorCode);
-    return;
-  }
-
-  if (result.data?.sdkInitialized) {
-    console.log('SDK hazır. Session için startSession() kullanın.');
-  }
-}
-```
-
-**Örnek 3: Backend'in POST /api/paywall/temptoken/sdk isteği için örnek body**
-
-Backend'e gönderilebilecek istek gövdesi (isteğe bağlı):
-
-```typescript
-// Masterpass session dahil temp token istenir
-const requestBody = {
-  IncludeMasterpassSession: true,
-  MasterpassSession: {
-    ReferenceCode: '1737123456789',      // Benzersiz referans (sayı string)
-    UserId: 'USER_123',
-    UserPhone: '905437892802',
-    Force3D: false,
-    PhoneVerifiedByMerchant: true
-  }
-};
-
-const response = await fetch('/api/paywall/temptoken/sdk', {
+// 1. Backend'den temp token al (Masterpass session dahil)
+const backendResponse = await fetch('https://your-backend.com/api/paywall/temptoken/sdk', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(requestBody)
+  body: JSON.stringify({
+    IncludeMasterpassSession: true,
+    MasterpassSession: {
+      ReferenceCode: Date.now().toString(),
+      UserId: 'USER_123',
+      UserPhone: '905437892802',
+      Force3D: false,
+      PhoneVerifiedByMerchant: true
+    }
+  })
 });
+
+const backendData = await backendResponse.json();
+const token = backendData.body.Token;
+
+// 2. SDK'yı tek adımda başlat
+const result = await PaywallJsSdk.InitWithMasterpassToken({
+  environment: 'test',
+  token: token,
+  includeMasterpassSession: true
+});
+
+if (!result.success) {
+  console.error('Init hatası:', result.message);
+  return;
+}
+
+// 3. Provider otomatik initialize edilir (SDK içinde)
+await PaywallJsSdk.providers.masterpass.init();
+
+// 4. Artık ödeme yapılabilir
+console.log('SDK hazır! SessionId:', result.data.body.Masterpass.SessionId);
 ```
+
+**ÖNEMLİ NOTLAR:**
+
+1. **Temp token backend'den alınmalıdır** - SDK token üretmez
+2. **`includeMasterpassSession: true`** olduğunda:
+   - Backend'den Masterpass session bilgileri gelir
+   - SDK otomatik olarak session state'ini set eder
+   - `providers.masterpass.init()` manuel olarak çağrılmalıdır (SDK otomatik çağırmaz)
+3. **`includeMasterpassSession: false`** olduğunda:
+   - Normal `Init()` gibi çalışır
+   - Sonrasında `startSession()` manuel çağrılmalıdır
+4. **Response'ta `userId` ve `userPhone` bilgileri varsa**: SDK test uygulamasında bu değerler otomatik form alanlarına doldurulur
 
 ---
 
