@@ -8,12 +8,7 @@ declare global {
 }
 
 interface PaywallJsSdkType {
-  InitManual: (params: {
-    merchantId: string;
-    token: string;
-    environment: 'dev' | 'test' | 'prod';
-  }) => Promise<any>;
-  InitAutomatic: (params: {
+  InitPaywallSdk: (params: {
     token: string;
     environment: 'dev' | 'test' | 'prod';
     includeMasterpassSession?: boolean;
@@ -25,16 +20,14 @@ interface PaywallJsSdkType {
       deleteCard: (params?: any) => Promise<any>;
       verifyOtp: (params?: any) => Promise<any>;
       merchantLink: (params?: any) => Promise<any>;
+      accountAccess: (params?: any) => Promise<any>;
       [key: string]: any;
     };
     [key: string]: any;
   };
   payment: {
     init: (params?: any) => Promise<any>;
-    [key: string]: any;
-  };
-  ExternalService: {
-    // startSession removed - use InitAutomatic instead
+    registerAndPurchase: (params?: any) => Promise<any>;
     [key: string]: any;
   };
   InternalService: any;

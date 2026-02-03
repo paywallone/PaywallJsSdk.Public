@@ -46,16 +46,15 @@
       <div class="form-group">
         <label>Access Token:</label>
         <input type="text" [(ngModel)]="accessToken" placeholder="Enter token from backend" class="form-control" [disabled]="sdkInitSuccess" />
-        <small style="color: #666; font-size: 11px;">💡 Get from merchant backend (includes session for InitAutomatic)</small>
+        <small style="color: #666; font-size: 11px;">💡 Get from merchant backend (includes session info)</small>
       </div>
       <div class="form-group">
         <label>
           <input type="checkbox" [(ngModel)]="includeMasterpassSession" [disabled]="sdkInitSuccess" />
-          Include Masterpass Session (for Init Automatic)
+          Include Masterpass Session
         </label>
         <small style="color: #666; font-size: 11px; display: block; margin-top: 5px;">
-          ✅ When checked: Token contains session info (userId, userPhone auto-filled)<br/>
-          ❌ When unchecked: Manual session management required
+          ✅ When checked: Token contains session info (userId, userPhone auto-filled)
         </small>
       </div>
     </div>
@@ -68,11 +67,11 @@
     <div class="action-group">
       <button
         class="btn btn-primary"
-        (click)="initPaywallSdk()"
-        [disabled]="!accessToken.trim() || sdkInitLoading || initAutomaticLoading || sdkInitSuccess"
+        (click)="InitPaywallSdk()"
+        [disabled]="!accessToken.trim() || sdkInitLoading || sdkInitSuccess"
       >
         <span *ngIf="sdkInitLoading">⏳ Loading...</span>
-        <span *ngIf="!sdkInitLoading">Init Paywall SDK</span>
+        <span *ngIf="!sdkInitLoading">Init Paywall SDK (with Session)</span>
       </button>
       <span class="badge"
             [class.success]="sdkInitSuccess"
@@ -82,18 +81,6 @@
       </span>
     </div>
 
-    <div class="action-group">
-      <button
-        class="btn btn-primary"
-        (click)="initPaywallAutomatic()"
-        [disabled]="!accessToken.trim() || sdkInitLoading || initAutomaticLoading || sdkInitSuccess"
-      >
-        <span *ngIf="initAutomaticLoading">⏳ Loading...</span>
-        <span *ngIf="!initAutomaticLoading">Init Paywall Automatic</span>
-      </button>
-      <!-- Aynı badge ve response section'ı paylaşıyor -->
-    </div>
-
     <div class="response-section" *ngIf="sdkInitResponse">
       <button class="toggle-btn" (click)="toggleResponseExpanded('sdkInitResponseExpanded')">
         {{ sdkInitResponseExpanded ? '▼' : '▶' }} Response JSON
@@ -101,13 +88,13 @@
       <pre *ngIf="sdkInitResponseExpanded">{{ sdkInitResponse | json }}</pre>
     </div>
 
-    <!-- Start Session removed - Session is now created automatically via InitAutomatic -->
+    <!-- Session is now created automatically in backend and passed via token -->
 
     <div class="action-group">
       <button
         class="btn btn-primary"
         (click)="initMasterpassProvider()"
-        [disabled]="!sessionId || providerInitLoading || initAutomaticLoading || providerInitSuccess"
+        [disabled]="!sessionId || providerInitLoading || providerInitSuccess"
       >
         <span *ngIf="providerInitLoading">⏳ Loading...</span>
         <span *ngIf="!providerInitLoading">Init Masterpass Provider</span>

@@ -28,7 +28,6 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   sdkInitResponse: any = null;
   sdkInitResponseExpanded = false;
   includeMasterpassSession = true;
-  initAutomaticLoading = false;
 
   sessionLoading = false;
   sessionSuccess = false;
@@ -191,7 +190,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
   // ========== A) SDK / SESSION CONTROL PANEL ==========
 
-  /** InitAutomatic veya normal akış sonrası: provider + session hazır mı (flowState veya component state) */
+  /** InitPaywallSdk sonrası: provider + session hazır mı (flowState veya component state) */
   isProviderAndSessionReady(): boolean {
     const fs = this.flowRunner.getFlowState();
     const providerOk = this.providerInitSuccess || fs.providerInitialized === true;
@@ -199,7 +198,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     return !!providerOk && !!sessionOk;
   }
 
-  async initPaywallSdk() {
+  async InitPaywallSdk() {
     if (!this.accessToken.trim()) {
       this.sdkInitError = 'Token is required';
       return;
@@ -211,17 +210,32 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     this.sdkInitResponse = null;
 
     try {
-      const response = await PaywallJsSdk['InitManual']({
-        environment: this.environment,
-        token: this.accessToken,
-        logLevel: 'debug'
-      } as any);
+      const sdk = PaywallJsSdk as any;
+      
+      let response;
+      if (typeof sdk['InitPaywallSdk'] === 'function') {
+        response = await sdk['InitPaywallSdk']({
+          environment: this.environment,
+          token: this.accessToken,
+          includeMasterpassSession: this.includeMasterpassSession
+        });
+      } else if (typeof sdk['InitAutomatic'] === 'function') {
+        response = await sdk['InitAutomatic']({
+          environment: this.environment,
+          token: this.accessToken,
+          includeMasterpassSession: this.includeMasterpassSession
+        });
+      } else {
+        this.sdkInitError = 'SDK metodu bulunamadı. SDK dosyasını kontrol edin.';
+        return;
+      }
 
       this.sdkInitResponse = response;
       this.logService.addStep({
-        actionName: 'initPaywallSdk',
+        actionName: 'InitPaywallSdk',
         request: {
           environment: this.environment,
+          includeMasterpassSession: this.includeMasterpassSession,
           token: this.logService.maskSensitiveData({ token: this.accessToken }).token
         },
         response: this.logService.maskSensitiveData(response),
@@ -230,10 +244,49 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       if (response.success === true && response.data?.sdkInitialized === true) {
         this.sdkInitSuccess = true;
-        this.flowRunner.updateFlowState({
-          environment: this.environment,
-          currentToken: this.accessToken
-        });
+        
+        // Session bilgileri varsa otomatik doldur
+        if (response.data?.hasMasterpassSession && response.data?.body?.Masterpass) {
+          const masterpass = response.data.body.Masterpass;
+          this.sessionId = masterpass.SessionId || masterpass.sessionId;
+          
+          const responseUserId = masterpass.UserId || masterpass.userId;
+          const responseUserPhone = masterpass.UserPhone || masterpass.userPhone;
+
+          if (responseUserId) {
+            this.userId = responseUserId;
+          }
+          if (responseUserPhone) {
+            this.userPhone = responseUserPhone;
+          }
+
+          this.flowRunner.updateFlowState({
+            environment: this.environment,
+            currentToken: this.accessToken,
+            sessionId: this.sessionId || undefined,
+            userId: this.userId || responseUserId || '',
+            userPhone: this.userPhone || responseUserPhone || '',
+            providerInitialized: true
+          });
+
+          // Provider otomatik çağır
+          try {
+            const providerInitResponse = await PaywallJsSdk.providers.masterpass.init();
+            if (providerInitResponse.success === true && providerInitResponse.data?.masterpassSdkInitialized === true) {
+              this.providerInitSuccess = true;
+              this.providerInitError = null;
+              this.providerInitResponse = providerInitResponse;
+              this.flowRunner.updateFlowState({ providerInitialized: true });
+            }
+          } catch (providerError: any) {
+            this.providerInitError = providerError.message || 'Provider init failed after InitPaywallSdk';
+          }
+        } else {
+          this.flowRunner.updateFlowState({
+            environment: this.environment,
+            currentToken: this.accessToken
+          });
+        }
       } else {
         this.sdkInitSuccess = false;
         this.sdkInitError = response.message || 'SDK initialization failed';
@@ -242,7 +295,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       this.sdkInitSuccess = false;
       this.sdkInitError = error.message || 'SDK initialization failed';
       this.logService.addStep({
-        actionName: 'initPaywallSdk',
+        actionName: 'InitPaywallSdk',
         error: error.message || 'Unknown error'
       });
     } finally {
@@ -252,147 +305,11 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     }
   }
 
-  /**
-   * Init Paywall SDK Automatic (temp token from backend).
-   * Token = Access Token alanındaki değer (backend temptoken/sdk cevabından).
-   * Başarıda hasMasterpassSession true ise session ayrıca başlatılmaz; Init Masterpass Provider otomatik çağrılır.
-   */
-  async initPaywallAutomatic() {
-    if (!this.accessToken.trim()) {
-      this.sdkInitError = 'Token is required';
-      return;
-    }
-
-    this.initAutomaticLoading = true;
-    this.sdkInitSuccess = false;
-    this.sdkInitError = null;
-    this.sdkInitResponse = null;
-
-    try {
-      const sdk = PaywallJsSdk as any;
-      if (typeof sdk['InitAutomatic'] !== 'function') {
-        this.sdkInitError = 'InitAutomatic is not available. Ensure SDK has been built with this method and re-link: in SDK folder run "npm run build", then here run "npm run reinstall-sdk".';
-        return;
-      }
-
-      const response = await sdk['InitAutomatic']({
-        environment: this.environment,
-        token: this.accessToken.trim(),
-        includeMasterpassSession: this.includeMasterpassSession,
-      });
-
-      this.sdkInitResponse = response;
-      this.logService.addStep({
-        actionName: 'initPaywallAutomatic',
-        request: {
-          environment: this.environment,
-          token: this.logService.maskSensitiveData({ token: this.accessToken }).token,
-          includeMasterpassSession: this.includeMasterpassSession,
-        },
-        response: this.logService.maskSensitiveData(response),
-        normalizedResult: this.logService.normalizeResponse(response),
-      });
-
-      // Parse: response -> data -> body -> Masterpass
-      const data = response?.data;
-      const body = data?.body;
-      const masterpass = body?.Masterpass;
-
-      // Başarı kontrolü
-      const isSuccess = (response?.success === true || response?.status === 'SUCCESS' || data?.status === 'SUCCESS');
-      const isSdkInitialized = data?.sdkInitialized === true;
-      const hasMasterpassSession = data?.hasMasterpassSession === true;
-      const ok = isSuccess && isSdkInitialized;
-
-      if (!ok) {
-        this.sdkInitSuccess = false;
-        this.sdkInitError = response?.message || data?.message || 'InitAutomatic failed';
-        return;
-      }
-
-      // OK: SDK init başarılı
-      this.sdkInitSuccess = true;
-      this.sdkInitError = null;
-      const currentToken = (body?.Token || this.accessToken) as string;
-
-      // Masterpass session var mı?
-      if (hasMasterpassSession && masterpass) {
-        // ZORUNLU: session + provider state'lerini set et
-        this.sessionId = masterpass.SessionId || masterpass.sessionId || null;
-        this.masterpassToken = masterpass.MasterpassToken || masterpass.masterpassToken || null;
-        this.sessionSuccess = true;
-        this.sessionError = null;
-        this.providerInitSuccess = true;
-        this.providerInitError = null;
-        this.sessionResponse = { success: true, data: { sessionId: this.sessionId, masterpassToken: this.masterpassToken } };
-        this.providerInitResponse = { success: true, data: { masterpassSdkInitialized: true } };
-
-        // userId ve userPhone da response'tan set et (form alanları boşsa bunlar kullanılır)
-        const responseUserId = masterpass.UserId || masterpass.userId;
-        const responseUserPhone = masterpass.UserPhone || masterpass.userPhone;
-
-        // Component state: response'tan geleni tercih et, yoksa form alanını kullan
-        if (responseUserId && !this.userId) {
-          this.userId = responseUserId;
-        }
-        if (responseUserPhone && !this.userPhone) {
-          this.userPhone = responseUserPhone;
-        }
-
-        // flowRunner: userId ve userPhone kesin set edilsin (response'tan veya form'dan)
-        const finalUserId = this.userId || responseUserId || '';
-        const finalUserPhone = this.userPhone || responseUserPhone || '';
-        const sid = this.sessionId || '';
-
-        const flowUpdate = {
-          environment: this.environment,
-          currentToken,
-          sessionId: sid,
-          providerInitialized: true,
-          userId: finalUserId,
-          userPhone: finalUserPhone,
-        };
-
-        this.flowRunner.updateFlowState(flowUpdate);
-
-        // SDK zorunlu: providers.masterpass.init() çağır
-        try {
-          const providerInitResponse = await PaywallJsSdk.providers.masterpass.init();
-
-          if (providerInitResponse.success === true && providerInitResponse.data?.masterpassSdkInitialized === true) {
-            this.providerInitSuccess = true;
-            this.providerInitError = null;
-            this.providerInitResponse = providerInitResponse;
-            this.flowRunner.updateFlowState({ providerInitialized: true });
-          }
-        } catch (providerError: any) {
-          this.providerInitError = providerError.message || 'Provider init failed after InitAutomatic';
-        }
-      } else {
-        // Masterpass yok: sadece SDK init state
-        this.flowRunner.updateFlowState({ environment: this.environment, currentToken });
-      }
-
-      this.cdr.detectChanges();
-    } catch (error: any) {
-      this.sdkInitSuccess = false;
-      this.sdkInitError = error.message || 'InitAutomatic failed';
-      this.logService.addStep({
-        actionName: 'initPaywallAutomatic',
-        error: error.message || 'Unknown error',
-      });
-    } finally {
-      this.initAutomaticLoading = false;
-      this.loadLogs();
-      this.updateCurrentState();
-    }
-  }
-
-  // startSession removed - Session is now created automatically via InitAutomatic
+  // initPaywallAutomatic removed - Now using InitPaywallSdk only
 
   async initMasterpassProvider() {
     if (!this.sdkInitSuccess || !this.sessionId) {
-      this.providerInitError = 'SDK and Session must be initialized first (use InitAutomatic)';
+      this.providerInitError = 'SDK and Session must be initialized first (use InitPaywallSdk)';
       return;
     }
 

@@ -330,7 +330,7 @@ export class MasterpassFlowRunnerService {
     // Restart session - DEPRECATED: startSession removed
     this.logService.addStep({
       actionName: 'restartSession',
-      error: 'startSession is deprecated - use InitAutomatic instead'
+      error: 'startSession is deprecated - session is now included in InitPaywallSdk'
     });
     return false;
 

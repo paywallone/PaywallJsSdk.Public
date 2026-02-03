@@ -98,9 +98,8 @@ export class SdkTestComponent implements OnInit {
   }
 
   /**
-   * Step 1: Core SDK Init
-   * PaywallJsSdk.InitManual() - Core SDK initialization
-   * SADECE token alır, network request YOK
+   * Step 1: SDK + Session Init
+   * PaywallJsSdk.InitPaywallSdk() - SDK + Session initialization
    */
   async initCoreSdk() {
     if (!this.accessToken || this.accessToken.trim() === '') {
@@ -110,16 +109,28 @@ export class SdkTestComponent implements OnInit {
     }
 
     try {
-      this.log('--- STEP 1: CORE SDK INIT ---');
+      this.log('--- STEP 1: SDK + SESSION INIT ---');
       this.log('Environment: ' + this.environment);
       this.log('Token: ' + this.maskToken(this.accessToken));
 
-      // Call SDK - Core init (using InitManual)
-      const response = await PaywallJsSdk['InitManual']({
-        environment: this.environment,
-        token: this.accessToken,
-        logLevel: 'debug'
-      } as any);
+      // Call SDK -Init with session (InitPaywallSdk - büyük I)
+      const sdk = PaywallJsSdk as any;
+      let response;
+      if (typeof sdk['InitPaywallSdk'] === 'function') {
+        response = await sdk['InitPaywallSdk']({
+          environment: this.environment,
+          token: this.accessToken,
+          includeMasterpassSession: true
+        });
+      } else if (typeof sdk['InitAutomatic'] === 'function') {
+        response = await sdk['InitAutomatic']({
+          environment: this.environment,
+          token: this.accessToken,
+          includeMasterpassSession: true
+        });
+      } else {
+        throw new Error('SDK metodu bulunamadı');
+      }
 
       this.coreInitResponse = response;
 
@@ -145,11 +156,11 @@ export class SdkTestComponent implements OnInit {
 
   /**
    * Step 2: Session Start - REMOVED
-   * startSession() is no longer available - use InitAutomatic instead
+   * startSession() is no longer available - session is now included in InitPaywallSdk
    */
   async startSession() {
-    this.sessionError = 'startSession is deprecated - use InitAutomatic instead';
-    this.log('ERROR: startSession is deprecated - use InitAutomatic instead');
+    this.sessionError = 'startSession is deprecated - session is now included in InitPaywallSdk';
+    this.log('ERROR: startSession is deprecated - session is now included in InitPaywallSdk');
     return;
   }
 

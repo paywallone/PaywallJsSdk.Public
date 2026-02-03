@@ -89,20 +89,11 @@ declare global {
 }
 
 interface PaywallJsSdkType {
-  InitManual: (params: {
-    token: string;
-    environment: 'dev' | 'test' | 'prod';
-    merchantId?: string;
-    timeoutMs?: number;
-    logLevel?: 'none' | 'error' | 'info' | 'debug';
-  }) => Promise<SdkResponse>;
-  
-  InitAutomatic: (params: {
-    token: string;
-    environment: 'dev' | 'test' | 'prod';
-    includeMasterpassSession?: boolean;
-  }) => Promise<SdkResponse>;
-  // ... diğer metodlar
+   InitPaywallSdk: (params: {
+      token: string;
+      environment: 'dev' | 'test' | 'prod';
+      includeMasterpassSession?: boolean;
+  }) => Promise<SdkResponse>;// ... diğer metodlar
 }
 
 export {};
@@ -116,7 +107,7 @@ export {};
 
 ```typescript
 // 1. Tek adımda SDK, Session ve Provider'ı hazırla
-const result = await PaywallJsSdk.InitAutomatic({
+const result = await PaywallJsSdk.InitPaywallSdk({
   environment: 'test',
   token: 'TOKEN_FROM_BACKEND',  // Backend'den temp token + Masterpass session
   includeMasterpassSession: true
@@ -169,21 +160,15 @@ if (payment.success && payment.data.status === 'SUCCESS') {
 
 ### 3.2. Temel Ödeme Akışı
 
-**Önerilen Yöntem (InitAutomatic):**
 1. **Backend**: Merchant backend'de Masterpass session oluştur, token içine ekle
-2. **SDK Init**: `PaywallJsSdk.InitAutomatic()` ile SDK başlat + Session bilgilerini otomatik al
+2. **SDK Init**: `PaywallJsSdk.InitPaywallSdk()` ile SDK başlat + Session bilgilerini otomatik al
 3. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize et
 4. **Payment**: `PaywallJsSdk.payment.init()` veya `PaywallJsSdk.payment.registerAndPurchase()` ile ödeme yap
 5. **Response Handling**: Response'u kontrol edip gerekli aksiyonları al
 
-**Manuel Yöntem (InitManual - Eski):**
-1. **Backend**: Merchant backend'de Masterpass session oluştur (ayrı tutuluyor)
-2. **SDK Init**: `InitManual()` - SDK başlat (session bilgisi yok)
-3. **Session Bilgileri**: Backend'den SessionId'yi manuel al
-4. **Provider Init**: `providers.masterpass.init()` - Provider hazırla
-5. **Payment**: SessionId'yi her işlemde manuel geç
+**✅ AVANTAJ:** Session bilgileri otomatik SDK'da, manuel işlem gerekmez!
 
-**⚠️ Önemli:** SDK'nın `startSession()` metodu kaldırılmıştır. Session oluşturma işlemi artık sadece **merchant backend tarafından** yapılmalıdır.
+**⚠️ Önemli:** Session oluşturma işlemi **merchant backend tarafından** yapılmalıdır.
 
 ---
 
@@ -191,86 +176,21 @@ if (payment.success && payment.data.status === 'SUCCESS') {
 
 ### 4.1. Initialization
 
-#### `PaywallJsSdk.InitManual(config)`
-
-**📚 Detaylı Dokümantasyon:** https://developer.paywall.one/client-side-servisler/1.-yetkilendirme
-
-SDK'yı initialize eder. Bu fonksiyon network isteği atmaz, sadece config validation ve state set eder. **Session bilgileri dahil edilmez**, merchant backend'den manuel olarak alınmalıdır.
-
-**⚠️ Not:** Masterpass session'ı merchant backend tarafından oluşturulmalı ve SessionId manuel olarak yönetilmelidir.
-
-**Parametreler:**
-
-| Parametre | Tip | Zorunlu | Açıklama |
-|-----------|-----|---------|----------|
-| `token` | string | ✅ | Geçici access token (GUID formatında, merchant backend'den alınmalı) |
-| `environment` | string | ✅ | Ortam tipi: `'dev'`, `'test'` veya `'prod'` |
-| `merchantId` | string | ❌ | Merchant ID (opsiyonel, session'dan da alınabilir) |
-| `timeoutMs` | number | ❌ | Request timeout süresi (opsiyonel, default: 10000) |
-| `logLevel` | string | ❌ | Log seviyesi: `'none'`, `'error'`, `'info'`, `'debug'` (opsiyonel, default: `'error'`) |
-
-**Environment Seçenekleri:**
-
-- `'dev'`: Development ortamı
-- `'test'`: Test ortamı
-- `'prod'`: Production ortamı
-
-**Örnek:**
-
-```typescript
-const response = await PaywallJsSdk.InitManual({
-  environment: 'test',
-  token: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-  logLevel: 'debug'
-});
-
-if (response.success) {
-  console.log('SDK initialized successfully');
-} else {
-  console.error('SDK initialization failed:', response.message);
-}
-```
-
-**Response:**
-
-```typescript
-{
-  success: true,
-  status: 'SUCCESS',
-  source: 'SDK',
-  message: 'SDK initialized successfully',
-  data: {
-    environment: 'test',
-    sdkInitialized: true
-  }
-}
-```
-
----
-
-#### `PaywallJsSdk.InitAutomatic(config)`
+#### `PaywallJsSdk.InitPaywallSdk(config)`
 
 **📚 Detaylı Dokümantasyon:** https://developer.paywall.one/client-side-servisler/2.-yetkilendirme-sdk
 
 Backend'den alınan temp token ile SDK'yı tek adımda başlatır. **Merchant backend'de oluşturulan Masterpass session bilgilerini** otomatik olarak SDK'ya taşır.
 
-**Ne zaman kullanılır?**
+**🎯 ÖZELLİKLER:**
 
-- Merchant backend'de Masterpass session oluşturulduğunda
-- Session bilgilerini (SessionId, MasterpassToken) backend'den temp token içinde almak istediğinizde
-- SDK init ve session bilgilerini tek seferde hazırlamak istediğinizde
-- Daha hızlı ve kolay entegrasyon için (önerilen yöntem)
+✅ **Otomatik Session Yönetimi:** SessionId, userId, userPhone otomatik SDK'da hazır
+✅ **Daha Az Kod:** Manuel session taşıma kodları gereksiz
+✅ **Daha Az Hata:** Session bilgilerini elle set etme hatası riski yok
+✅ **Hızlı Entegrasyon:** Tek adımda SDK + Session hazır
+✅ **Bakım Kolaylığı:** Session parametrelerini her yerde manuel geçmenize gerek yok
 
-**Normal akıştan farkı:**
-
-| Adım | InitManual (Manuel) | InitAutomatic (Önerilen) |
-|------|---------------------|--------------------------|
-| Backend | Merchant backend'de session oluştur | Merchant backend'de session oluştur + Token içine ekle |
-| 1 | `InitManual()` - SDK başlat (session bilgisi YOK) | `InitAutomatic()` - SDK başlat + Session bilgilerini al |
-| 2 | SessionId'yi backend'den manuel al | ✅ SessionId otomatik gelir (token'dan parse edilir) |
-| 3 | Provider init | Provider init |
-
-**💡 Not:** Her iki yöntemde de session **merchant backend tarafından** oluşturulur. Fark, InitAutomatic ile session bilgilerinin otomatik olarak SDK'ya taşınmasıdır.
+**📌 ÖNEMLİ:** Tüm session bilgileri otomatik olarak SDK tarafından yönetilir. **Manuel kod yazmaya gerek yoktur!**
 
 **Parametreler:**
 
@@ -323,8 +243,8 @@ const backendResponse = await fetch('https://your-backend.com/api/paywall/tempto
 const backendData = await backendResponse.json();
 const token = backendData.body.Token;
 
-// 2. SDK'yı tek adımda başlat
-const result = await PaywallJsSdk.InitAutomatic({
+// 2. SDK'yı tek adımda başlat - SESSION BİLGİLERİ OTOMATİK GELİR!
+const result = await PaywallJsSdk.InitPaywallSdk({
   environment: 'test',
   token: token,
   includeMasterpassSession: true
@@ -335,71 +255,52 @@ if (!result.success) {
   return;
 }
 
-// 3. Provider otomatik initialize edilir (SDK içinde)
+// 3. Provider init
 await PaywallJsSdk.providers.masterpass.init();
 
-// 4. Artık ödeme yapılabilir
+// 4. Artık ödeme yapılabilir - SessionId'yi elle geçmenize gerek yok!
 console.log('SDK hazır! SessionId:', result.data.body.Masterpass.SessionId);
+
+// ✅ AVANTAJ: Her payment çağrısında sessionId'yi manuel set etmenize GEREK YOK!
+// SDK otomatik olarak session bilgilerini kullanır.
 ```
 
 **ÖNEMLİ NOTLAR:**
 
 1. **Temp token backend'den alınmalıdır** - SDK token üretmez
-2. **`includeMasterpassSession: true`** olduğunda:
+2. **`includeMasterpassSession: true`** olmalıdır:
    - Backend'den Masterpass session bilgileri gelir
    - SDK otomatik olarak session state'ini set eder
+   - **Artık sessionId'yi kod tarafında manuel set etmenize GEREK YOK!**
    - `providers.masterpass.init()` manuel olarak çağrılmalıdır (SDK otomatik çağırmaz)
-3. **`includeMasterpassSession: false`** olduğunda:
-   - Normal `InitManual()` gibi çalışır
-   - Session bilgileri **backend'den manuel alınmalıdır** (merchant backend'de oluşturulur)
-4. **Response'ta `userId` ve `userPhone` bilgileri varsa**: SDK test uygulamasında bu değerler otomatik form alanlarına doldurulur
+3. **Response'ta `userId` ve `userPhone` bilgileri varsa**: SDK test uygulamasında bu değerler otomatik form alanlarına doldurulur
 
 ---
 
 ### 4.2. Masterpass Provider
 
-**⚠️ ÖNEMLİ: SDK'nın `startSession()` metodu kaldırıldı!**
+**Session Yönetimi:**
 
-**Yeni Yapı:**
-1. **Session oluşturma** artık **merchant backend tarafından** yapılmalıdır
-2. SDK'nın `startSession()` metodu kaldırılmıştır
-3. Session bilgileri `InitAutomatic()` ile otomatik olarak SDK'ya taşınır
+1. **Session oluşturma** **merchant backend tarafından** yapılmalıdır
+2. Session bilgileri `InitPaywallSdk()` ile otomatik olarak SDK'ya taşınır
 
-**Önerilen Kullanım (InitAutomatic):**
+**Kullanım:**
 
 ```typescript
 // 1. Merchant backend'de session oluştur ve token içine ekle
-// Backend API: /create-session-with-token
-
 // 2. Backend'den token al (içinde session bilgileri var)
 const tokenFromBackend = await fetch('/api/create-session-with-token');
 
 // 3. SDK'yı başlat - Session bilgileri otomatik gelir
-const result = await PaywallJsSdk.InitAutomatic({
+const result = await PaywallJsSdk.InitPaywallSdk({
   environment: 'test',
   token: tokenFromBackend,
   includeMasterpassSession: true
 });
 
-// 4. Session bilgileri otomatik parse edilir
+// 4. Session bilgileri otomatik parse edilir - ELLE SET ETMEYE GEREK YOK!
 const sessionId = result.data.body.Masterpass.SessionId;
 const masterpassToken = result.data.body.Masterpass.MasterpassToken;
-```
-
-**Manuel Yöntem (InitManual):**
-
-```typescript
-// 1. Merchant backend'de session oluştur (ayrı endpoint)
-const sessionData = await fetch('/api/create-masterpass-session');
-
-// 2. SDK'yı başlat (session bilgisi olmadan)
-await PaywallJsSdk.InitManual({
-  environment: 'test',
-  token: await getTokenFromBackend()
-});
-
-// 3. SessionId'yi manuel kullan
-const sessionId = sessionData.sessionId;
 ```
 
 #### Kart İşlemleri
@@ -1072,8 +973,8 @@ try {
 ```typescript
 // Session kontrolü
 if (!isSessionValid()) {
-  // InitAutomatic ile yeni session oluştur
-  const newSession = await PaywallJsSdk.InitAutomatic({
+  // InitPaywallSdk ile yeni session oluştur
+  const newSession = await PaywallJsSdk.InitPaywallSdk({
     environment: 'test',
     token: await getTokenFromBackend(),
     includeMasterpassSession: true
@@ -1158,7 +1059,7 @@ if (result.data.actionType === 'BANK_OTP') {
 async function completePaymentFlow() {
   try {
     // 1. SDK + Session + Provider Hazırla
-    const initResult = await PaywallJsSdk.InitAutomatic({
+    const initResult = await PaywallJsSdk.InitPaywallSdk({
       environment: 'test',
       token: await getTokenFromBackend(),
       includeMasterpassSession: true
@@ -1232,7 +1133,7 @@ async function completePaymentFlow() {
 async function merchantLinkFlow() {
   try {
     // 1. SDK + Session Hazırla
-    const initResult = await PaywallJsSdk.InitAutomatic({
+    const initResult = await PaywallJsSdk.InitPaywallSdk({
       environment: 'test',
       token: await getTokenFromBackend(),
       includeMasterpassSession: true
@@ -1288,7 +1189,7 @@ async function merchantLinkFlow() {
 async function registerAndPurchaseFlow() {
   try {
     // 1. SDK + Session Hazırla
-    const initResult = await PaywallJsSdk.InitAutomatic({
+    const initResult = await PaywallJsSdk.InitPaywallSdk({
       environment: 'test',
       token: await getTokenFromBackend(),
       includeMasterpassSession: true
@@ -1389,23 +1290,11 @@ interface SdkResponse<T = any> {
 }
 
 interface PaywallJsSdkType {
-  InitManual: (params: {
-    token: string;
-    environment: 'dev' | 'test' | 'prod';
-    merchantId?: string;
-    timeoutMs?: number;
-    logLevel?: 'none' | 'error' | 'info' | 'debug';
-  }) => Promise<SdkResponse>;
-  
-  InitAutomatic: (params: {
+  InitPaywallSdk: (params: {
     token: string;
     environment: 'dev' | 'test' | 'prod';
     includeMasterpassSession?: boolean;
   }) => Promise<SdkResponse>;
-  
-  ExternalService: {
-    // startSession removed - use InitAutomatic instead
-  };
   
   providers: {
     masterpass: {
@@ -1515,10 +1404,10 @@ SDK, farklı log seviyeleri destekler:
 **Örnek:**
 
 ```typescript
-await PaywallJsSdk.InitManual({
+await PaywallJsSdk.InitPaywallSdk({
   environment: 'test',
   token: 'TOKEN',
-  logLevel: 'debug' // Debug mode aktif
+  includeMasterpassSession: true
 });
 ```
 
@@ -1594,11 +1483,9 @@ Sorun bildirmek veya özellik isteği yapmak için GitHub Issues kullanabilirsin
 ## Ek Notlar
 
 - Tüm fonksiyonlar Promise döner
-- **ÖNEMLİ: SDK'nın `startSession()` metodu kaldırıldı**
 - **Session oluşturma merchant backend tarafından yapılmalıdır**
 - SDK initialize edilmeden fonksiyonlar çağrılamaz
-- Session bilgileri `InitAutomatic()` ile otomatik SDK'ya taşınır (önerilen)
-- `InitManual()` kullanıyorsanız SessionId'yi backend'den manuel almanız gerekir
+- Session bilgileri `InitPaywallSdk()` ile otomatik SDK'ya taşınır
 - Kart bilgileri RSA ile şifrelenerek gönderilir
 - 3D Secure akışında `redirectUrl`'e yönlendirme yapılmalıdır
 - OTP doğrulama merchant backend tarafından yapılmalıdır
