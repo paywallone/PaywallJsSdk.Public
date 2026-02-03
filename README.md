@@ -107,7 +107,7 @@ async function initializeSDK() {
 
 **⚠️ Önemli:** Session oluşturma **merchant backend** tarafından yapılmalıdır.
 
-### Adım 4: Masterpass Provider'ı Initialize Edin
+### Adım 3: Masterpass Provider'ı Initialize Edin
 
 Session bilgileri hazır olduktan sonra, Masterpass provider'ı initialize edin:
 
@@ -127,7 +127,7 @@ async function initMasterpassProvider() {
 
 **💡 Not:** `accountKey` parametresi opsiyoneldir. Session state'inden otomatik alınır.
 
-### Adım 5: Ödeme İşlemini Başlatın
+### Adım 4: Ödeme İşlemini Başlatın
 
 Tüm adımlar tamamlandıktan sonra ödeme işlemini başlatabilirsiniz:
 
