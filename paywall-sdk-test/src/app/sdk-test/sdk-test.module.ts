@@ -12,6 +12,7 @@ import { ConfirmDialogComponent } from './dialogs/confirm-dialog/confirm-dialog.
 import { SelectCardDialogComponent } from './dialogs/select-card-dialog/select-card-dialog.component';
 import { ErrorCodesModalComponent } from './components/error-codes-modal/error-codes-modal.component';
 import { ErrorActionGuideModalComponent } from './components/error-action-guide-modal/error-action-guide-modal.component';
+import { SdkFlowDiagramComponent } from './components/sdk-flow-diagram/sdk-flow-diagram.component';
 
 @NgModule({
   declarations: [
@@ -21,7 +22,8 @@ import { ErrorActionGuideModalComponent } from './components/error-action-guide-
     ConfirmDialogComponent,
     SelectCardDialogComponent,
     ErrorCodesModalComponent,
-    ErrorActionGuideModalComponent
+    ErrorActionGuideModalComponent,
+    SdkFlowDiagramComponent
   ],
   imports: [
     CommonModule,

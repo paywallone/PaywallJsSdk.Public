@@ -144,57 +144,13 @@ export class SdkTestComponent implements OnInit {
   }
 
   /**
-   * Step 2: Session Start
-   * PaywallJsSdk.ExternalService.Masterpass.startSession()
-   * Merchant explicitly calls this - NOT automatic
+   * Step 2: Session Start - REMOVED
+   * startSession() is no longer available - use InitAutomatic instead
    */
   async startSession() {
-    if (!this.coreInitSuccess) {
-      this.sessionError = 'Core SDK must be initialized first';
-      this.log('ERROR: Core SDK must be initialized first');
-      return;
-    }
-
-    try {
-      this.log('--- STEP 2: SESSION START ---');
-
-      // Call SDK - Session start
-      const response = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-        referenceCode: this.sessionForm.referenceCode,
-        userId: this.sessionForm.userId,
-        userPhone: this.sessionForm.userPhone,
-        force3D: this.sessionForm.force3D,
-        phoneVerifiedByMerchant: true
-      });
-      this.sessionResponse = response;
-
-      // Check SDK response - Session response can have sessionId in data or directly
-      const responseAny = response as any;
-      const sessionId = responseAny.data?.sessionId || responseAny.sessionId;
-      const masterpassToken = responseAny.data?.masterpassToken || responseAny.masterpassToken;
-
-      if (response && sessionId) {
-        this.sessionData = {
-          ...responseAny,
-          sessionId: sessionId,
-          masterpassToken: masterpassToken
-        };
-        this.sessionStarted = true;
-        this.currentStep = 'SESSION_STARTED';
-        this.sessionError = null;
-        this.log('✓ Session started successfully');
-        this.log('SessionId: ' + sessionId);
-      } else {
-        this.sessionStarted = false;
-        this.sessionError = 'Session start failed - no sessionId in response';
-        this.log('✗ Session start failed: ' + this.sessionError);
-      }
-    } catch (e: any) {
-      this.sessionStarted = false;
-      this.sessionError = e.message || 'Session start failed';
-      this.log('✗ SESSION ERROR');
-      this.log(e);
-    }
+    this.sessionError = 'startSession is deprecated - use InitAutomatic instead';
+    this.log('ERROR: startSession is deprecated - use InitAutomatic instead');
+    return;
   }
 
   /**

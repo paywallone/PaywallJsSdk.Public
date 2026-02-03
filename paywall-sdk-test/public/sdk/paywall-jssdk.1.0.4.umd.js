@@ -380,7 +380,7 @@
    *
    * @example
    * ```typescript
-   * PaywallJsSdk.InitManualManual({
+   * PaywallJsSdk.InitManual({
    *   environment: "test",
    *   token: "YOUR_ACCESS_TOKEN"
    * });
@@ -389,10 +389,10 @@
   function initConfig(config) {
     // Required field validation - ONLY environment and token
     if (!config.environment) {
-      throw new Error('PaywallJsSdk.InitManualManual() requires environment parameter');
+      throw new Error('PaywallJsSdk.InitManual() requires environment parameter');
     }
     if (!config.token || config.token.trim() === '') {
-      throw new Error('PaywallJsSdk.InitManualManual() requires token');
+      throw new Error('PaywallJsSdk.InitManual() requires token');
     }
     // Environment validation
     if (!['dev', 'test', 'prod'].includes(config.environment)) {
@@ -436,11 +436,11 @@
    */
   function getConfig() {
     if (!currentConfig) {
-      throw new Error('PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManualManual() first.');
+      throw new Error('PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManual() first.');
     }
     // Lifecycle state kontrolü de yap
     if (!isSdkInitialized()) {
-      throw new Error('PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManualManual() first.');
+      throw new Error('PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManual() first.');
     }
     return currentConfig;
   }
@@ -5179,14 +5179,14 @@
   // Centralized SDK Messages - All messages in English
   const SDK_MESSAGES = {
     // SDK Initialization
-    SDK_NOT_INITIALIZED: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before using this function.',
+    SDK_NOT_INITIALIZED: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before using this function.',
     ENVIRONMENT_NOT_RESOLVED: 'Environment not resolved. Make sure Init() was called successfully.',
     INVALID_TOKEN: 'Token is required and cannot be empty.',
     INVALID_TOKEN_FORMAT: 'Token must be in GUID format. Please provide a valid token.',
     // Session
-    SESSION_NOT_STARTED: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before this operation.',
-    SESSION_NOT_CREATED: 'Masterpass session must be created before calling this operation. Please call PaywallJsSdk.ExternalService.Masterpass.startSession() first.',
-    MISSING_SESSION_ID: 'Session ID is missing. Please call PaywallJsSdk.ExternalService.Masterpass.startSession() first to create a session.',
+    SESSION_NOT_STARTED: 'Session must be started first. Use PaywallJsSdk.InitWithMasterpassToken with includeMasterpassSession: true.',
+    SESSION_NOT_CREATED: 'Masterpass session must be created before calling this operation. Use PaywallJsSdk.InitWithMasterpassToken with includeMasterpassSession: true.',
+    MISSING_SESSION_ID: 'Session ID is missing. Use PaywallJsSdk.InitWithMasterpassToken with includeMasterpassSession: true to create a session.',
     MISSING_REFERENCE_CODE: 'referenceCode is required and cannot be empty. Please provide a valid reference code.',
     MISSING_USER_ID: 'userId is required and cannot be empty. Please provide a valid user ID.',
     MISSING_USER_PHONE: 'userPhone is required and cannot be empty. Please provide a valid phone number.',
@@ -5582,47 +5582,6 @@
    * Provides validation functions for session, headers, card data, payment details, etc.
    */
   /**
-   * UserPhone validation - TR phone format
-   * Supported formats: +905xxxxxxxxx, 905xxxxxxxxx, 5xxxxxxxxx, 05xxxxxxxxx
-   */
-  function validateUserPhone(phone) {
-    if (!phone || phone.trim() === '') {
-      return {
-        valid: false,
-        errorCode: 'MISSING_USER_PHONE',
-        field: 'UserPhone',
-        message: SDK_MESSAGES.MISSING_USER_PHONE,
-      };
-    }
-    // Remove all non-digit characters
-    const digitsOnly = phone.replace(/\D/g, '');
-    // Turkish phone validation: Should be 10 digits starting with 5, or 12 digits starting with 90
-    const isTurkishMobile = /^5\d{9}$/.test(digitsOnly) || /^905\d{9}$/.test(digitsOnly);
-    if (!isTurkishMobile) {
-      return {
-        valid: false,
-        errorCode: 'INVALID_USER_PHONE',
-        field: 'UserPhone',
-        message: 'Invalid UserPhone. Supported country codes only.',
-      };
-    }
-    return { valid: true };
-  }
-  /**
-   * UserId validation
-   */
-  function validateUserId(userId) {
-    if (!userId || userId.trim() === '') {
-      return {
-        valid: false,
-        errorCode: 'MISSING_USER_ID',
-        field: 'UserId',
-        message: SDK_MESSAGES.MISSING_USER_ID,
-      };
-    }
-    return { valid: true };
-  }
-  /**
    * Validates card alias (required when saving card to Masterpass)
    */
   function validateCardAlias(alias, isSaveCardEnabled) {
@@ -5730,102 +5689,6 @@
      */
     PaymentType[PaymentType["Otp"] = 3] = "Otp";
   })(exports.PaymentType || (exports.PaymentType = {}));
-  async function startSession(params) {
-    assertSdkInitialized();
-    getConfig();
-    try {
-      const envConfig = getResolvedEnvironmentConfig();
-      if (!envConfig) {
-        return createFailedResponse('SDK', SDK_MESSAGES.ENVIRONMENT_NOT_RESOLVED, 'ENVIRONMENT_NOT_RESOLVED');
-      }
-      // Validate referenceCode
-      if (!params.referenceCode || params.referenceCode.trim() === '') {
-        return createFailedResponse('SDK', SDK_MESSAGES.MISSING_REFERENCE_CODE, 'MISSING_REFERENCE_CODE', undefined, { field: 'referenceCode' });
-      }
-      const userIdValidation = validateUserId(params.userId);
-      if (!userIdValidation.valid) {
-        return createValidationFailedResponse(userIdValidation, 'SDK');
-      }
-      const userPhoneValidation = validateUserPhone(params.userPhone);
-      if (!userPhoneValidation.valid) {
-        return createValidationFailedResponse(userPhoneValidation, 'SDK');
-      }
-      const requestBody = {
-        ReferenceCode: params.referenceCode,
-        UserId: params.userId,
-        UserPhone: params.userPhone,
-        Force3D: params.force3D ?? false,
-        PhoneVerifiedByMerchant: params.phoneVerifiedByMerchant ?? true,
-      };
-      const sessionUrl = `${envConfig.paymentApiBaseUrl}/api/paywall/masterpass/by/sdk/session`;
-      const response = await httpPost(sessionUrl, requestBody);
-      const responseData = response.data || response;
-      const body = responseData.Body || responseData.body || responseData;
-      if (!body.SessionId) {
-        return createFailedResponse('PAYWALL', 'Masterpass session response missing SessionId.', 'MISSING_SESSION_ID', {
-          responseCode: 'MISSING_SESSION_ID',
-          httpStatus: response.status,
-          raw: responseData
-        });
-      }
-      if (!body.MasterpassToken) {
-        return createFailedResponse('PAYWALL', 'Masterpass session response missing MasterpassToken.', 'MISSING_MASTERPASS_TOKEN', {
-          responseCode: 'MISSING_MASTERPASS_TOKEN',
-          httpStatus: response.status,
-          raw: responseData
-        });
-      }
-      const sessionResult = {
-        sessionId: body.SessionId,
-        sessionExpiryDate: body.SessionExpiryDate,
-        masterpassToken: body.MasterpassToken,
-        ...(body.MasterpassMerchantId && { masterpassMerchantId: body.MasterpassMerchantId }),
-        ...(body.MasterpassTerminalGroupId && { masterpassTerminalGroupId: body.MasterpassTerminalGroupId }),
-        ...(typeof body.IsProd === 'boolean' && { isProd: body.IsProd }),
-        ...(typeof body.IsTest === 'boolean' && { isTest: body.IsTest }),
-        ...(typeof body.IsUat === 'boolean' && { isUat: body.IsUat }),
-      };
-      setMasterpassSession({
-        sessionId: sessionResult.sessionId,
-        sessionExpiryDate: sessionResult.sessionExpiryDate,
-        masterpassToken: sessionResult.masterpassToken,
-        ...(body.MasterpassTerminalGroupId && { masterpassTerminalGroupId: body.MasterpassTerminalGroupId }),
-      });
-      setSessionId(body.SessionId);
-      setMasterpassToken(body.MasterpassToken);
-      if (body.MasterpassMerchantId) {
-        setMasterpassMerchantId(body.MasterpassMerchantId);
-      }
-      return createSuccessResponse('PAYWALL', sessionResult, SDK_MESSAGES.SESSION_CREATED_SUCCESS, {
-        httpStatus: response.status,
-        responseCode: 'SUCCESS',
-        raw: responseData
-      });
-    }
-    catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      let errorCode = 'SESSION_CREATION_FAILED';
-      if (errorMessage.includes('referenceCode')) {
-        errorCode = 'MISSING_REFERENCE_CODE';
-      }
-      else if (errorMessage.includes('userId')) {
-        errorCode = 'MISSING_USER_ID';
-      }
-      else if (errorMessage.includes('userPhone')) {
-        errorCode = 'MISSING_USER_PHONE';
-      }
-      else if (errorMessage.includes('SessionId')) {
-        errorCode = 'MISSING_SESSION_ID';
-      }
-      else if (errorMessage.includes('MasterpassToken')) {
-        errorCode = 'MISSING_MASTERPASS_TOKEN';
-      }
-      return createFailedResponse('PAYWALL', getMessage('SESSION_CREATION_FAILED', errorMessage), errorCode, {
-        responseCode: errorCode,
-        raw: error
-      });
-    }
-  }
   // Paywall'dan gelen MasterpassRequestBody'i clone eder ve placeholder'ları gerçek kart bilgileriyle replace eder (PCI-DSS: kart bilgileri sadece Masterpass SDK'ya iletilir)
   function buildMasterpassPayload(masterpassRequestBody, cardData, paymentSource, metadata) {
     // Paywall'dan gelen MasterpassRequestBody'i deep clone et
@@ -6748,9 +6611,8 @@
    * - Kart bilgileri RSA ile şifrelenir
    *
    * **LIFECYCLE:**
-   * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-   * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
-   * - Session'dan SONRA çağrılmalıdır
+   * - SDK core init edilmiş olmalıdır (PaywallJsSdk.Init() veya InitWithMasterpassToken)
+   * - Masterpass session mevcut olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
    *
    * **PCI-DSS UYUM:**
    * - Kart bilgileri sadece Masterpass SDK'ya iletilir
@@ -6762,22 +6624,18 @@
    *
    * @example
    * ```typescript
-   * // Önce SDK'yı initialize et
-   * await PaywallJsSdk.InitManualManual({
+   * // SDK + Masterpass session ile init
+   * const initResult = await PaywallJsSdk.InitWithMasterpassToken({
    *   environment: 'test',
-   *   token: 'TOKEN_FROM_MERCHANT_BACKEND',
+   *   token: 'TEMP_TOKEN_FROM_MERCHANT_BACKEND',
+   *   includeMasterpassSession: true,
    * });
-   *
-   * // Session başlat
-   * const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-   *   referenceCode: 'REF-001',
-   *   userId: 'USER_001',
-   *   userPhone: '+905551234567',
-   * });
+   * if (!initResult.success || !initResult.data?.hasMasterpassSession) return;
+   * const sessionId = initResult.data.body?.Masterpass?.SessionId;
    *
    * // Kart kaydedip ödeme yap
    * const result = await PaywallJsSdk.payment.registerAndPurchase({
-   *   sessionId: session.data.sessionId,
+   *   sessionId,
    *   accountKey: '+905551234567',
    *   accountKeyType: 'Msisdn',
    *   merchantUserId: 'USER_001',
@@ -7168,16 +7026,6 @@
    * Payment status bilgisi webhook veya merchant backend tarafından yönetilir.
    */
   /**
-   * Masterpass session oluşturma işlemi (deprecated).
-   *
-   * **DEPRECATED:** Use `startSession()` instead.
-   *
-   * @deprecated Use startSession() instead
-   */
-  async function createSession(params) {
-    return await startSession(params);
-  }
-  /**
    * Masterpass ile kart ekleme işlemi.
    *
    * Bu fonksiyon Masterpass SDK'nın AccountService.addCard metodunu kullanarak
@@ -7218,10 +7066,10 @@
    */
   async function addCard(params) {
     if (!isInitialized()) {
-      return createFailedResponse('SDK', 'PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManualManual() first.', 'SDK_NOT_INITIALIZED');
+      return createFailedResponse('SDK', 'PaywallJsSdk is not initialized. Call PaywallJsSdk.InitManual() first.', 'SDK_NOT_INITIALIZED');
     }
     if (!hasMasterpassSession()) {
-      return createFailedResponse('SDK', 'Masterpass session must be created before calling this operation. Please call PaywallJsSdk.ExternalService.Masterpass.startSession() first.', 'SESSION_NOT_CREATED');
+      return createFailedResponse('SDK', SDK_MESSAGES.SESSION_NOT_CREATED, 'SESSION_NOT_CREATED');
     }
     getConfig();
     try {
@@ -7377,8 +7225,7 @@
     assertSdkInitialized();
     // Masterpass session guard - session oluşturulmamışsa hata fırlat
     if (!hasMasterpassSession()) {
-      throw new Error('Masterpass session must be created before calling this operation. ' +
-        'Please call PaywallJsSdk.masterpass.createSession() first.');
+      throw new Error(SDK_MESSAGES.SESSION_NOT_CREATED);
     }
     // Token is now obtained from SDK config, no validation needed here
     const config = getConfig();
@@ -10370,7 +10217,7 @@
      *
      * @example
      * ```typescript
-     * await PaywallJsSdk.InitManualManual({
+     * await PaywallJsSdk.InitManual({
      *   environment: 'test',
      *   token: 'TOKEN_FROM_MERCHANT_BACKEND',
      *   merchantId: 'MERCHANT_ID' // optional
@@ -10592,7 +10439,7 @@
        *
        * **NOT:**
        * - Açık kart numarası (PAN) ve CVV bu fonksiyona VERİLMEMELİDİR.
-       * - Bu fonksiyon çağrılmadan önce mutlaka `PaywallJsSdk.InitManualManual(config)` çağrılmış olmalıdır.
+       * - Bu fonksiyon çağrılmadan önce mutlaka `PaywallJsSdk.InitManual(config)` çağrılmış olmalıdır.
        * - Sadece masked kart bilgileri kabul edilir: `first8`, `last4`, `expireMonth`, `expireYear`
        *
        * **PCI-DSS UYUM:**
@@ -10606,7 +10453,7 @@
        * @example
        * ```typescript
        * // Önce SDK'yı initialize et
-       * await PaywallJsSdk.InitManualManual(config);
+       * await PaywallJsSdk.InitManual(config);
        *
        * // Sonra masked payment init yap
        * const initResponse = await PaywallJsSdk.payment.initMaskedPayment({
@@ -10661,20 +10508,17 @@
        *
        * @example
        * ```typescript
-       * // Önce SDK'yı initialize et
-       * await PaywallJsSdk.InitManualManual({
+       * // SDK + Masterpass session ile init
+       * const initResult = await PaywallJsSdk.InitWithMasterpassToken({
        *   environment: 'test',
-       *   accessToken: 'TOKEN_FROM_MERCHANT_BACKEND',
-       *   merchantId: 'M12345',
-       *   masterpass: { ... }
+       *   token: 'TEMP_TOKEN_FROM_MERCHANT_BACKEND',
+       *   includeMasterpassSession: true,
        * });
-       *
-       * // Session başlat
-       * const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({ ... });
+       * const sessionId = initResult.data?.body?.Masterpass?.SessionId;
        *
        * // Payment init yap
-       * const initResult = await PaywallJsSdk.payment.init({
-       *   sessionId: session.sessionId,
+       * const paymentInitResult = await PaywallJsSdk.payment.init({
+       *   sessionId,
        *   paymentSource: PaymentSource.MANUAL_CARD,
        *   force3D: false,
        *   paymentDetail: {
@@ -10705,9 +10549,9 @@
        *   ]
        * });
        *
-       * if (initResult.threeDAddress) {
+       * if (paymentInitResult.threeDAddress) {
        *   // 3D Secure redirect (SDK otomatik redirect yapmaz)
-       *   window.location.href = initResult.threeDAddress;
+       *   window.location.href = paymentInitResult.threeDAddress;
        * }
        * ```
        */
@@ -10744,18 +10588,17 @@
        *
        * @example
        * ```typescript
-       * // Önce SDK'yı initialize et
-       * await PaywallJsSdk.InitManualManual({
+       * // SDK + Masterpass session ile init
+       * const initResult = await PaywallJsSdk.InitWithMasterpassToken({
        *   environment: 'test',
-       *   token: 'TOKEN_FROM_MERCHANT_BACKEND',
+       *   token: 'TEMP_TOKEN_FROM_MERCHANT_BACKEND',
+       *   includeMasterpassSession: true,
        * });
-       *
-       * // Session başlat
-       * const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({ ... });
+       * const sessionId = initResult.data?.body?.Masterpass?.SessionId;
        *
        * // Kayıtlı kart ile ödeme init yap
-       * const initResult = await PaywallJsSdk.payment.initWithRegisteredCard({
-       *   sessionId: session.sessionId,
+       * const paymentInitResult = await PaywallJsSdk.payment.initWithRegisteredCard({
+       *   sessionId,
        *   alias: 'CARD_ALIAS_123',
        *   maskedCard: '460345******1234',
        *   cardBin: '460345',
@@ -10780,9 +10623,8 @@
        *   ]
        * });
        *
-       * if (initResult.threeDAddress) {
-       *   // 3D Secure redirect (SDK otomatik redirect yapmaz)
-       *   window.location.href = initResult.threeDAddress;
+       * if (paymentInitResult.threeDAddress) {
+       *   window.location.href = paymentInitResult.threeDAddress;
        * }
        * ```
        */
@@ -10832,63 +10674,11 @@
       poll3DResultSingle: poll3DResult$1, // Single request version (backward compatibility)
     },
     /**
-     * Masterpass servisleri için modül.
-     * Masterpass session yönetimi ve işlemleri burada yer alır.
-     */
-    masterpass: {
-      /**
-       * Masterpass session oluşturma işlemi.
-       *
-       * **DEPRECATED:** Use `ExternalService.Masterpass.startSession()` instead.
-       *
-       * @deprecated Use ExternalService.Masterpass.startSession() instead
-       */
-      createSession: createSession,
-    },
-    /**
      * External servisler için modül.
      * Masterpass, Stripe, PayPal gibi dış servislerin entegrasyonları burada yer alır.
      */
     ExternalService: {
       Masterpass: {
-        /**
-         * Masterpass session başlatma işlemi.
-         *
-         * **LIFECYCLE:**
-         * - Bu fonksiyon merchant tarafından manuel olarak çağrılır
-         * - SDK açılır açılmaz otomatik çalışmaz
-         * - assertSdkInitialized() kontrolü yapılır
-         *
-         * **TOKEN MANTIĞI:**
-         * - Token config.accessToken'dan otomatik alınır
-         * - SDK token üretmez, refresh etmez
-         *
-         * **ENDPOINT:**
-         * POST /api/paywall/masterpass/by/sdk/session
-         *
-         * **HEADER:**
-         * Authorization: Bearer {accessToken} (config'den otomatik)
-         * Content-Type: application/json
-         *
-         * @param params - Session başlatma parametreleri
-         * @returns Promise<SdkResponse<MasterpassCreateSessionResult>> - Session bilgileri
-         *
-         * @example
-         * ```typescript
-         * const result = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-         *   referenceCode: 'REF-001',
-         *   userId: 'USER_001',
-         *   userPhone: '+905551234567',
-         *   force3D: false,
-         *   phoneVerifiedByMerchant: true
-         * });
-         *
-         * if (result.success && result.data) {
-         *   console.log(result.data.sessionId); // "SESSION-123"
-         * }
-         * ```
-         */
-        startSession: startSession,
         AddCard: (params) => {
           return addCard(params);
         },
@@ -10915,8 +10705,8 @@
        * Masterpass provider initialization - EXTERNAL API.
        *
        * **LIFECYCLE:**
-       * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-       * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+       * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+       * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
        * - Session'dan SONRA çağrılmalıdır
        * - Merchant tarafından manuel olarak çağrılır
        *
@@ -10934,13 +10724,13 @@
        * @example
        * ```typescript
        * // 1) SDK core init
-       * await PaywallJsSdk.InitManualManual({
+       * await PaywallJsSdk.InitManual({
        *   environment: 'test',
        *   token: 'TOKEN_FROM_MERCHANT_BACKEND',
        * });
        *
        * // 2) Session başlat (MasterpassToken ve MasterpassMerchantId session'dan gelir)
-       * const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+       * await PaywallJsSdk.InitWithMasterpassToken({
        *   referenceCode: 'REF-001',
        *   userId: 'USER_001',
        *   userPhone: '+905551234567',
@@ -10963,7 +10753,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before provider init.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before provider init.',
               data: {
                 masterpassSdkInitialized: false,
               },
@@ -10975,7 +10765,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before provider init.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before provider init.',
               data: {
                 masterpassSdkInitialized: false,
               },
@@ -11014,8 +10804,8 @@
          * Masterpass provider add card - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11040,13 +10830,13 @@
          * @example
          * ```typescript
          * // 1) SDK core init
-         * await PaywallJsSdk.InitManualManual({
+         * await PaywallJsSdk.InitManual({
          *   environment: 'test',
          *   token: 'TOKEN_FROM_MERCHANT_BACKEND',
          * });
          *
          * // 2) Session başlat
-         * const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
+         * await PaywallJsSdk.InitWithMasterpassToken({
          *   referenceCode: 'REF-001',
          *   userId: 'USER_001',
          *   userPhone: '+905551234567',
@@ -11091,7 +10881,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before addCard.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before addCard.',
               providerMeta: {
                 provider: 'SDK',
                 httpStatus: 0,
@@ -11105,7 +10895,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before addCard.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before addCard.',
               providerMeta: {
                 provider: 'SDK',
                 httpStatus: 0,
@@ -11149,8 +10939,8 @@
          * Masterpass provider link merchant - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11193,7 +10983,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before linkMerchant.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before linkMerchant.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11205,7 +10995,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before linkMerchant.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before linkMerchant.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11243,8 +11033,8 @@
          * Masterpass provider unlink merchant - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11275,7 +11065,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before unlinkMerchant.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before unlinkMerchant.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11287,7 +11077,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before unlinkMerchant.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before unlinkMerchant.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11325,8 +11115,8 @@
          * Masterpass provider verify OTP - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11361,7 +11151,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before verifyOtp.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before verifyOtp.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11373,7 +11163,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before verifyOtp.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before verifyOtp.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11411,8 +11201,8 @@
          * Masterpass provider resend OTP - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11448,7 +11238,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before resendOtp.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before resendOtp.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11460,7 +11250,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before resendOtp.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before resendOtp.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11498,8 +11288,8 @@
          * Masterpass provider get card list - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11544,7 +11334,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before getCardList.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before getCardList.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11556,7 +11346,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before getCardList.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before getCardList.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11609,8 +11399,8 @@
          * Paywall backend endpoint'ine istek atar: POST /api/masterpass/merchant-unlink
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
          * **TOKEN:**
@@ -11651,7 +11441,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before merchantUnlink.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before merchantUnlink.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11663,7 +11453,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before merchantUnlink.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before merchantUnlink.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },
@@ -11689,8 +11479,8 @@
          * Masterpass provider delete card - EXTERNAL API.
          *
          * **LIFECYCLE:**
-         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManualManual() çağrılmış olmalı)
-         * - Session BAŞLATILMIŞ olmalıdır (PaywallJsSdk.ExternalService.Masterpass.startSession() çağrılmış olmalı)
+         * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitManual() çağrılmış olmalı)
+         * - Session BAŞLATILMIŞ olmalıdır (InitWithMasterpassToken ile includeMasterpassSession: true kullanılmış olmalı)
          * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
          * - Merchant tarafından manuel olarak çağrılır
          *
@@ -11728,7 +11518,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManualManual() before deleteCard.',
+              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitManual() before deleteCard.',
               providerMeta: {
                 responseCode: 'SDK_NOT_INITIALIZED',
               },
@@ -11740,7 +11530,7 @@
               success: false,
               status: 'FAILED',
               source: 'SDK',
-              message: 'Session must be started first. Call PaywallJsSdk.ExternalService.Masterpass.startSession() before deleteCard.',
+              message: 'Session must be started first. Use InitWithMasterpassToken with includeMasterpassSession: true before deleteCard.',
               providerMeta: {
                 responseCode: 'SESSION_NOT_STARTED',
               },

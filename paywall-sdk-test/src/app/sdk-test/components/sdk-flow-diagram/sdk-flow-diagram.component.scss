@@ -1,0 +1,380 @@
+.sdk-flow-container {
+  padding: 30px;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+  
+  h1 {
+    font-size: 2.5rem;
+    color: #2C3E50;
+    margin-bottom: 10px;
+  }
+  
+  .description {
+    font-size: 1.1rem;
+    color: #7F8C8D;
+  }
+}
+
+.comparison-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  padding: 30px;
+  margin-bottom: 40px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  
+  h2 {
+    color: white;
+    margin-bottom: 10px;
+    font-size: 1.8rem;
+  }
+  
+  .info-text {
+    color: #FFF3CD;
+    background: rgba(255,255,255,0.1);
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    text-align: center;
+    
+    strong {
+      color: #FF6B6B;
+      text-shadow: 0 0 10px rgba(255,107,107,0.5);
+    }
+  }
+  
+  .mermaid {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #ECF0F1;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 15px 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  background: #ECF0F1;
+  color: #7F8C8D;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 10px 10px 0 0;
+  
+  &:hover {
+    background: #BDC3C7;
+    transform: translateY(-2px);
+  }
+  
+  &.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 -5px 20px rgba(102, 126, 234, 0.3);
+  }
+}
+
+.tab-content {
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.diagram-section {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.info-box {
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+  
+  &.automatic {
+    border-left: 5px solid #27AE60;
+  }
+  
+  &.manual {
+    border-left: 5px solid #E67E22;
+  }
+  
+  h3 {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+    color: #2C3E50;
+  }
+  
+  p {
+    font-size: 1.1rem;
+    color: #7F8C8D;
+    margin-bottom: 20px;
+  }
+}
+
+.backend-note {
+  background: #E8F8F5;
+  border-left: 4px solid #1ABC9C;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 5px;
+  
+  &.warning {
+    background: #FFF3E0;
+    border-left-color: #FF9800;
+  }
+  
+  h4 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: #1ABC9C;
+  }
+  
+  &.warning h4 {
+    color: #FF9800;
+  }
+  
+  p {
+    margin: 5px 0;
+    font-size: 0.95rem;
+  }
+  
+  ul {
+    margin: 8px 0 0 20px;
+    padding: 0;
+    
+    li {
+      font-size: 0.95rem;
+      margin: 4px 0;
+    }
+  }
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #F8F9FA;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: #E9ECEF;
+    transform: translateX(5px);
+  }
+  
+  &.deprecated {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+  
+  .step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 35px;
+    height: 35px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 50%;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  
+  strong {
+    flex: 1;
+    color: #2C3E50;
+    font-size: 1.05rem;
+  }
+  
+  .badge {
+    padding: 5px 12px;
+    background: #3498DB;
+    color: white;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    
+    &.warning {
+      background: #E74C3C;
+    }
+  }
+}
+
+.advantages, .disadvantages {
+  margin-top: 20px;
+  
+  h4 {
+    font-size: 1.3rem;
+    margin-bottom: 10px;
+    color: #2C3E50;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+    
+    li {
+      padding: 8px 0;
+      padding-left: 25px;
+      position: relative;
+      color: #34495E;
+      
+      &:before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: #27AE60;
+        font-weight: bold;
+      }
+    }
+  }
+}
+
+.disadvantages ul li:before {
+  content: '⚠️';
+}
+
+.mermaid-wrapper {
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+  overflow-x: auto;
+}
+
+.mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.code-example {
+  background: #2C3E50;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  
+  &.deprecated-code {
+    background: #E67E22;
+  }
+  
+  h4 {
+    color: white;
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+  }
+  
+  pre {
+    background: #1a1a1a;
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 0;
+    
+    code {
+      color: #61dafb;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+  }
+}
+
+.warning-box {
+  background: #FFF3CD;
+  border: 2px solid #FFC107;
+  border-radius: 10px;
+  padding: 15px;
+  margin-top: 15px;
+  color: #856404;
+  
+  strong {
+    color: #E74C3C;
+  }
+}
+
+.footer {
+  margin-top: 50px;
+  padding: 30px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.recommendation {
+  text-align: center;
+  color: white;
+  
+  h3 {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+  }
+  
+  p {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    
+    strong {
+      background: rgba(255,255,255,0.2);
+      padding: 3px 10px;
+      border-radius: 5px;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .sdk-flow-container {
+    padding: 15px;
+  }
+  
+  .header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .tabs {
+    flex-direction: column;
+  }
+  
+  .tab-button {
+    width: 100%;
+  }
+  
+  .step {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

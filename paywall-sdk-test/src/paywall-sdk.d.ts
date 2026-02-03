@@ -34,10 +34,7 @@ interface PaywallJsSdkType {
     [key: string]: any;
   };
   ExternalService: {
-    Masterpass: {
-      startSession: (params?: any) => Promise<any>;
-      [key: string]: any;
-    };
+    // startSession removed - use InitAutomatic instead
     [key: string]: any;
   };
   InternalService: any;

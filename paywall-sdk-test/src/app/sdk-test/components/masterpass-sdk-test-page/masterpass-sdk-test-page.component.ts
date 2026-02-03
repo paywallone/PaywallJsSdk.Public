@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Router } from '@angular/router';
 
 const PaywallJsSdk = window.PaywallJsSdk;
 import { MasterpassFlowRunnerService } from '../../services/masterpass-flow-runner.service';
@@ -162,8 +163,13 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   constructor(
     private flowRunner: MasterpassFlowRunnerService,
     public logService: SdkLogService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private router: Router
   ) {}
+
+  navigateToFlowDiagram(): void {
+    this.router.navigate(['/sdk-test/flow-diagram']);
+  }
 
   ngOnInit() {
     this.loadLogs();
@@ -382,76 +388,11 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     }
   }
 
-  async startSession() {
-    if (!this.sdkInitSuccess) {
-      this.sessionError = 'SDK must be initialized first';
-      return;
-    }
-
-    if (!this.userId || !this.userPhone) {
-      this.sessionError = 'UserId and UserPhone are required';
-      return;
-    }
-
-    this.sessionLoading = true;
-    this.sessionSuccess = false;
-    this.sessionError = null;
-    this.sessionResponse = null;
-
-    try {
-      const response = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-        referenceCode: this.merchantRef,
-        userId: this.userId,
-        userPhone: this.userPhone,
-        force3D: this.force3D,
-        phoneVerifiedByMerchant: true
-      });
-
-      this.sessionResponse = response;
-      const responseAny = response as any;
-      this.sessionId = responseAny.data?.sessionId || responseAny.sessionId;
-      this.masterpassToken = responseAny.data?.masterpassToken || responseAny.masterpassToken;
-
-      this.logService.addStep({
-        actionName: 'startSession',
-        request: {
-          referenceCode: this.merchantRef,
-          userId: this.userId,
-          userPhone: this.userPhone,
-          force3D: this.force3D
-        },
-        response: this.logService.maskSensitiveData(response),
-        normalizedResult: this.logService.normalizeResponse(response)
-      });
-
-      if (this.sessionId) {
-        this.sessionSuccess = true;
-        this.flowRunner.updateFlowState({
-          sessionId: this.sessionId,
-          userId: this.userId,
-          userPhone: this.userPhone
-        });
-      } else {
-        this.sessionSuccess = false;
-        this.sessionError = 'Session start failed - no sessionId in response';
-      }
-    } catch (error: any) {
-      this.sessionSuccess = false;
-      this.sessionError = error.message || 'Session start failed';
-      this.logService.addStep({
-        actionName: 'startSession',
-        error: error.message || 'Unknown error'
-      });
-    } finally {
-      this.sessionLoading = false;
-      this.loadLogs();
-      this.updateCurrentState();
-    }
-  }
+  // startSession removed - Session is now created automatically via InitAutomatic
 
   async initMasterpassProvider() {
-    if (!this.sdkInitSuccess || !this.sessionSuccess) {
-      this.providerInitError = 'SDK and Session must be initialized first';
+    if (!this.sdkInitSuccess || !this.sessionId) {
+      this.providerInitError = 'SDK and Session must be initialized first (use InitAutomatic)';
       return;
     }
 

@@ -118,12 +118,14 @@
         </label>
       </div>
     </div>
+    <!-- Start Session button removed - use InitAutomatic instead -->
     <button 
       (click)="startSession()" 
-      [disabled]="!coreInitSuccess || sessionStarted"
+      [disabled]="true"
       class="btn btn-primary"
+      style="opacity: 0.5; cursor: not-allowed;"
     >
-      Start Session
+      Start Session (Deprecated - Use InitAutomatic)
     </button>
     <div class="info-box" *ngIf="sessionStarted">
       <p>✓ Session started successfully. SDK stores MasterpassToken and MerchantId internally.</p>

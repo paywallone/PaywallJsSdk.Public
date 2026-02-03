@@ -6,10 +6,11 @@ Bu proje, Paywall JavaScript SDK'nın test edilmesi ve doğru kullanımının g�
 
 Bu test projesi:
 - SDK'nın doğru şekilde yüklenip yüklenmediğini test eder
-- SDK lifecycle'ını (Init → Session → Provider Init → Payment) test eder
+- **InitAutomatic** ve **InitManual** akışlarını test eder
 - Masterpass entegrasyonunu test eder
 - SDK API'lerinin doğru kullanımını gösterir
 - Hata durumlarını ve action required senaryolarını test eder
+- **Mermaid akış diyagramları** ile SDK kullanımını görselleştirir
 
 ## Gereksinimler
 
@@ -61,6 +62,79 @@ SDK, `index.html` içinde script tag ile yüklenir:
 ```
 
 SDK global olarak `window.PaywallJsSdk` üzerinden erişilebilir.
+
+---
+
+## SDK Kullanım Akışları
+
+### 🎯 İki Ana Kullanım Yöntemi
+
+#### **1. InitAutomatic (Önerilen)**
+
+**📚 Dokümantasyon:** https://developer.paywall.one/client-side-servisler/2.-yetkilendirme-sdk
+
+Backend'de session oluştur → Token içine ekle → SDK otomatik parse etsin
+
+```
+🏢 Merchant Backend
+  ↓ (Session + Token oluştur, token içine session bilgilerini ekle)
+1️⃣ PaywallJsSdk.InitAutomatic()
+  ↓ (Token'dan session bilgilerini parse et)
+2️⃣ PaywallJsSdk.providers.masterpass.init()
+  ↓
+3️⃣ Account/Card İşlemleri
+  ↓
+4️⃣ Payment İşlemleri
+```
+
+**Avantajlar:**
+- ✅ Tek SDK çağrısı ile session bilgileri hazır
+- ✅ SessionId, userId, userPhone otomatik alınır
+- ✅ Daha az kod, daha az hata
+- ✅ Backend'den gelen tüm data otomatik parse edilir
+
+#### **2. InitManual (Manuel)**
+
+**📚 Dokümantasyon:** https://developer.paywall.one/client-side-servisler/1.-yetkilendirme
+
+Backend'de session oluştur → SessionId'yi ayrı sakla → SDK'da manuel kullan
+
+```
+🏢 Merchant Backend
+  ↓ (Session oluştur, ayrı tutuluyor)
+1️⃣ PaywallJsSdk.InitManual()
+  ↓ (Session bilgisi YOK)
+2️⃣ Backend'den SessionId al (manuel)
+  ↓
+3️⃣ PaywallJsSdk.providers.masterpass.init()
+  ↓
+4️⃣ Account/Card İşlemleri
+  ↓
+5️⃣ Payment İşlemleri (SessionId manuel geç)
+```
+
+**Dezavantajlar:**
+- ⚠️ SessionId her işlemde manuel geçilmeli
+- ⚠️ Session bilgileri backend'den ayrı alınmalı
+- ⚠️ Daha fazla manuel işlem
+
+---
+
+### 📊 Akış Diyagramları
+
+Test uygulamasında **Mermaid ile hazırlanmış detaylı akış diyagramları** bulunmaktadır:
+
+```
+http://localhost:4200/sdk-test/flow-diagram
+```
+
+Bu sayfada:
+- ✅ InitAutomatic ve InitManual akışları görselleştirilmiş
+- ✅ Her adım detaylı açıklanmış
+- ✅ Response code'lar (5001 OTP, 5010 3D Secure) gösterilmiş
+- ✅ Dokümantasyon linklerine hızlı erişim
+
+---
 
 ---
 
@@ -123,66 +197,55 @@ await PaywallJsSdk.InitManual({
 
 ---
 
-### 2. PaywallJsSdk.ExternalService.Masterpass.startSession()
+### 2. ~~PaywallJsSdk.ExternalService.Masterpass.startSession()~~
 
-Masterpass session başlatır. Bu fonksiyon Paywall API'ye istek atarak session oluşturur.
+**❌ KALDIRILDI:** Bu metod artık SDK'da bulunmuyor. 
 
-#### Request
+**Yeni Yapı:**
+- Session oluşturma işlemi artık **merchant backend** tarafından yapılmalıdır
+- `InitAutomatic` kullanarak session bilgilerini otomatik alabilirsiniz
+- `InitManual` kullanıyorsanız SessionId'yi backend'den manuel almanız gerekir
+
+#### Alternatifler
+
+**InitAutomatic Kullanın (Önerilen):**
 
 ```javascript
-await PaywallJsSdk.ExternalService.Masterpass.startSession({
-  referenceCode: "1737123456789",
-  userId: "user123",
-  userPhone: "5551234567",
-  force3D: false,
-  phoneVerifiedByMerchant: true
+// Merchant backend'de session oluştur ve token içine ekle
+const result = await PaywallJsSdk.InitAutomatic({
+  environment: 'test',
+  token: tokenFromBackend, // İçinde session bilgileri var
+  includeMasterpassSession: true
 });
+
+// Session bilgileri otomatik gelir
+const sessionId = result.data.body.Masterpass.SessionId;
+const userId = result.data.body.Masterpass.UserId;
+const userPhone = result.data.body.Masterpass.UserPhone;
 ```
 
-#### Parametreler
+**InitManual Kullanıyorsanız:**
 
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `referenceCode` | string | Benzersiz referans kodu (sadece sayı olmalı, zorunlu) |
-| `userId` | string | Kullanıcı ID (zorunlu) |
-| `userPhone` | string | Kullanıcı telefon numarası (zorunlu) |
-| `force3D` | boolean | 3D Secure zorunlu mu? (opsiyonel, default: false) |
-| `phoneVerifiedByMerchant` | boolean | Telefon merchant tarafından doğrulandı mı? (opsiyonel, default: true) |
+```javascript
+// 1. Merchant backend'de session oluştur (API endpoint)
+const sessionData = await fetch('/api/create-masterpass-session', {
+  method: 'POST',
+  body: JSON.stringify({
+    userId: 'user123',
+    userPhone: '5551234567',
+    referenceCode: Date.now().toString(),
+    force3D: false
+  })
+});
 
-#### Başarılı Response
+// 2. SDK'yı başlat
+await PaywallJsSdk.InitManual({
+  environment: 'test',
+  token: await getTokenFromBackend()
+});
 
-```json
-{
-  "success": true,
-  "status": "SUCCESS",
-  "source": "PAYWALL",
-  "message": "Masterpass session created successfully.",
-  "data": {
-    "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "sessionExpiryDate": "2026-01-14T14:25:13+03:00",
-    "masterpassToken": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.xxxxxxxxxx...",
-    "masterpassMerchantId": "11111111",
-    "masterpassTerminalGroupId": "11111111111111111111111",
-    "isProd": false,
-    "isTest": true,
-    "isUat": false
-  }
-}
-```
-
-#### Başarısız Response
-
-```json
-{
-  "success": false,
-  "status": "FAILED",
-  "source": "SDK",
-  "message": "referenceCode is required and cannot be empty.",
-  "errorCode": "MISSING_REFERENCE_CODE",
-  "data": {
-    "field": "referenceCode"
-  }
-}
+// 3. SessionId'yi manuel kullan
+const sessionId = sessionData.sessionId;
 ```
 
 ---
@@ -599,7 +662,7 @@ await PaywallJsSdk.payment.init({
 
 | Parametre | Tip | Açıklama |
 |-----------|-----|----------|
-| `sessionId` | string | Session ID (startSession'dan alınan, zorunlu) |
+| `sessionId` | string | Session ID (merchant backend'den veya InitAutomatic response'dan alınan, zorunlu) |
 | `paymentSource` | string | Ödeme kaynağı: "MANUAL_CARD" veya "REGISTERED_CARD" (zorunlu) |
 | `paymentDetail` | object | Ödeme detayları (zorunlu) |
 | `paymentDetail.amount` | number | Ödeme tutarı (zorunlu) |
@@ -808,22 +871,19 @@ await PaywallJsSdk.payment.registerAndPurchase({
 #### Kullanım Örneği
 
 ```javascript
-// 1. SDK'yı initialize et
-await PaywallJsSdk.InitManual({
+// 1. SDK + Session hazırla (InitAutomatic ile)
+const initResult = await PaywallJsSdk.InitAutomatic({
   environment: 'test',
-  token: 'TOKEN_FROM_MERCHANT_BACKEND'
+  token: 'TOKEN_FROM_BACKEND',
+  includeMasterpassSession: true
 });
 
-// 2. Session başlat
-const session = await PaywallJsSdk.ExternalService.Masterpass.startSession({
-  referenceCode: Date.now().toString(),
-  userId: 'USER_123',
-  userPhone: '905437892802'
-});
+// 2. Provider init
+await PaywallJsSdk.providers.masterpass.init();
 
 // 3. Register and Purchase
 const result = await PaywallJsSdk.payment.registerAndPurchase({
-  sessionId: session.data.sessionId,
+  sessionId: initResult.data.body.Masterpass.SessionId,
   accountKey: '905437892802',
   accountKeyType: 'Msisdn',
   merchantUserId: 'USER_123',
@@ -881,36 +941,44 @@ if (result.success) {
 
 ## Test Senaryoları
 
-### Senaryo 1: Temel Ödeme Akışı
+### Senaryo 1: Temel Ödeme Akışı (InitAutomatic)
 
-1. **Token Alın**: Backend'inizden geçici token alın
-2. **SDK Init**: `PaywallJsSdk.InitManual()` ile SDK'yı başlatın
-3. **Session Başlat**: `PaywallJsSdk.ExternalService.Masterpass.startSession()` ile session oluşturun
-4. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
-5. **Payment**: `PaywallJsSdk.payment.init()` ile ödeme işlemini başlatın
+1. **Backend'den Token Alın**: Merchant backend'den session içeren token alın
+2. **SDK Init**: `PaywallJsSdk.InitAutomatic()` ile SDK + Session bilgilerini hazırlayın
+3. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
+4. **Payment**: `PaywallJsSdk.payment.init()` ile ödeme işlemini başlatın
 
 ### Senaryo 2: Kart Ekleme ve Ödeme
 
-1. SDK Init → Session Start → Provider Init adımlarını tamamlayın
+1. InitAutomatic → Provider Init adımlarını tamamlayın
 2. **Kart Ekle**: `PaywallJsSdk.providers.masterpass.addCard()` ile kart ekleyin
 3. OTP doğrulaması gerekirse `PaywallJsSdk.providers.masterpass.verifyOtp()` ile doğrulayın
 4. **Payment**: Kayıtlı kart ile `PaywallJsSdk.payment.init()` çağırın
 
 ### Senaryo 3: Kayıtlı Kartları Listeleme
 
-1. SDK Init → Session Start → Provider Init adımlarını tamamlayın
+1. InitAutomatic → Provider Init adımlarını tamamlayın
 2. **Kartları Listele**: `PaywallJsSdk.providers.masterpass.accessAccount()` ile kayıtlı kartları listeleyin
 3. Gerekirse merchant link işlemi yapın
 4. Listelenen kartlardan biri ile ödeme yapın
 
 ### Senaryo 4: Register and Purchase (Kart Kaydı ve Ödeme Tek Seferde)
 
-1. SDK Init → Session Start adımlarını tamamlayın
+1. InitAutomatic → Provider Init adımlarını tamamlayın
 2. **Register and Purchase**: `PaywallJsSdk.payment.registerAndPurchase()` ile kart kaydedip ödeme yapın
 3. OTP veya 3D Secure gerekiyorsa ilgili akışı tamamlayın
 4. Ödeme sonucunu kontrol edin
 
 **Not:** `registerAndPurchase` için `cardAlias` zorunludur.
+
+---
+
+### ⚠️ Önemli Değişiklikler
+
+- **SDK'nın `startSession()` metodu kaldırıldı**
+- Session oluşturma artık **merchant backend** tarafından yapılmalıdır
+- **InitAutomatic kullanımı önerilir:** Session bilgileri otomatik SDK'ya taşınır
+- **userId** ve **userPhone** inputları kaldırıldı - Bu bilgiler backend'den otomatik gelir
 
 ---
 
@@ -1012,42 +1080,7 @@ Değişiklik yok - `force3D` zaten mevcut (satır 104).
 
 **Dosya:** `masterpass-sdk-test-page.component.html`
 
-**1. Session alanına force3D checkbox ekle (Start Session butonunun yanına):**
-
-```html
-<div class="action-group">
-  <button 
-    class="btn btn-primary" 
-    (click)="startSession()" 
-    [disabled]="!sdkInitSuccess || sessionLoading || sessionSuccess"
-  >
-    <span *ngIf="sessionLoading">⏳ Loading...</span>
-    <span *ngIf="!sessionLoading">Start Session</span>
-  </button>
-  <label class="force3d-checkbox">
-    <input type="checkbox" [(ngModel)]="force3D" />
-    Force 3D
-  </label>
-  <span class="badge" 
-        [class.success]="sessionSuccess" 
-        [class.error]="sessionError"
-        [class.pending]="!sessionSuccess && !sessionError">
-    {{ sessionSuccess ? '✔ Success' : (sessionError ? '✖ Failed' : '○ Pending') }}
-  </span>
-</div>
-```
-
-**2. Registered Card Payment bölümünden force3D checkbox'ını kaldır:**
-
-Bu bölümü bulun ve kaldırın:
-```html
-<div class="form-group checkbox-group">
-  <label>
-    <input type="checkbox" [(ngModel)]="force3D" />
-    Force 3D
-  </label>
-</div>
-```
+**Not:** `startSession()` metodu SDK'dan kaldırılmıştır. Force3D parametresi artık backend'de session oluşturulurken kullanılmalıdır.
 
 #### SCSS Değişiklikleri
 

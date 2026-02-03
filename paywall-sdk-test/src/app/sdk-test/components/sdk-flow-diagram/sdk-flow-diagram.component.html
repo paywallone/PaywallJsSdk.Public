@@ -1,0 +1,160 @@
+<div class="sdk-flow-container">
+  <div class="header">
+    <h1>📊 Paywall SDK - Akış Diyagramları</h1>
+    <p class="description">
+      SDK'nın InitManual ve InitAutomatic metodlarının detaylı akış şemaları
+    </p>
+  </div>
+
+  <div class="comparison-section">
+    <h2>⚖️ Hızlı Karşılaştırma</h2>
+    <p class="info-text">💡 Diyagramlardaki <strong>kırmızı kutuya</strong> tıklayarak detaylı dokümantasyona ulaşabilirsiniz!</p>
+    <div class="mermaid" id="mermaid-comparison"></div>
+  </div>
+
+  <div class="tabs">
+    <button 
+      class="tab-button"
+      [class.active]="activeTab === 'automatic'"
+      (click)="switchTab('automatic')"
+    >
+      ⚡ InitAutomatic (Önerilen)
+    </button>
+    <button 
+      class="tab-button"
+      [class.active]="activeTab === 'manual'"
+      (click)="switchTab('manual')"
+    >
+      🔧 InitManual (Manuel)
+    </button>
+  </div>
+
+  <div class="tab-content">
+    <!-- InitAutomatic Tab -->
+    <div *ngIf="activeTab === 'automatic'" class="diagram-section">
+      <div class="info-box automatic">
+        <h3>⚡ InitAutomatic - Tek Adımda Hazırlık</h3>
+        <p><strong>Önerilen yöntem:</strong> Backend'de oluşturulan session bilgileri otomatik olarak SDK'ya taşınır.</p>
+        <div class="backend-note">
+          <h4>🏢 Backend İşlemleri:</h4>
+          <p>Merchant backend şunları yapar:</p>
+          <ul>
+            <li>Masterpass session oluşturur</li>
+            <li>Temp token oluşturur</li>
+            <li>Token içine session bilgilerini ekler</li>
+          </ul>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <span class="step-number">1</span>
+            <strong>PaywallJsSdk.InitAutomatic()</strong>
+            <span class="badge">SDK + Session Bilgileri</span>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <strong>PaywallJsSdk.providers.masterpass.init()</strong>
+            <span class="badge">Provider</span>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <strong>Account/Card Operations</strong>
+            <span class="badge">accountAccess, merchantLink, addCard, deleteCard</span>
+          </div>
+          <div class="step">
+            <span class="step-number">4</span>
+            <strong>Payment Operations</strong>
+            <span class="badge">init, registerAndPurchase, verifyOtp</span>
+          </div>
+        </div>
+        <div class="advantages">
+          <h4>✅ Avantajlar:</h4>
+          <ul>
+            <li>Backend'den gelen session bilgileri otomatik parse edilir</li>
+            <li>Tek SDK çağrısı ile tüm bilgiler hazır</li>
+            <li>SessionId, userId, userPhone otomatik alınır</li>
+            <li>Daha az kod, daha az hata riski</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="mermaid-wrapper">
+        <div class="mermaid" id="mermaid-automatic"></div>
+      </div>
+
+      <div class="code-example">
+        <h4>💻 Kod Örneği:</h4>
+        <pre><code>{{ codeExampleAutomatic }}</code></pre>
+      </div>
+    </div>
+
+    <!-- InitManual Tab -->
+    <div *ngIf="activeTab === 'manual'" class="diagram-section">
+      <div class="info-box manual">
+        <h3>🔧 InitManual - Manuel Adımlar</h3>
+        <p><strong>Eski yöntem:</strong> Session bilgileri SDK'ya otomatik taşınmaz, manuel olarak yönetilir.</p>
+        <div class="backend-note warning">
+          <h4>🏢 Backend İşlemleri (Manuel):</h4>
+          <p>Merchant backend şunları yapar:</p>
+          <ul>
+            <li>Masterpass session oluşturur</li>
+            <li>Session bilgilerini ayrı tutar (token içinde değil)</li>
+            <li>SessionId'yi merchant tarafında saklar</li>
+          </ul>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <span class="step-number">1</span>
+            <strong>PaywallJsSdk.InitManual()</strong>
+            <span class="badge">Sadece SDK Init</span>
+          </div>
+          <div class="step deprecated">
+            <span class="step-number">2</span>
+            <strong>SDK.startSession()</strong>
+            <span class="badge warning">KALDIRILDI - Backend'de yapılmalı</span>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <strong>PaywallJsSdk.providers.masterpass.init()</strong>
+            <span class="badge">Provider</span>
+          </div>
+          <div class="step">
+            <span class="step-number">4</span>
+            <strong>Account/Card/Payment Operations</strong>
+            <span class="badge">SessionId manuel geçilmeli</span>
+          </div>
+        </div>
+        <div class="disadvantages">
+          <h4>⚠️ Dezavantajlar:</h4>
+          <ul>
+            <li><strong>SDK'nın startSession() metodu kaldırıldı</strong></li>
+            <li>Session bilgileri backend'den manuel alınmalı</li>
+            <li>SessionId her API çağrısında manuel geçilmeli</li>
+            <li>Daha fazla manuel işlem, daha fazla hata riski</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="mermaid-wrapper">
+        <div class="mermaid" id="mermaid-manual"></div>
+      </div>
+
+      <div class="code-example deprecated-code">
+        <h4>💻 Eski Kod (Artık Önerilmiyor):</h4>
+        <pre><code>{{ codeExampleManual }}</code></pre>
+        <div class="warning-box">
+          <strong>⚠️ Uyarı:</strong> SDK'nın startSession() metodu kaldırıldı. Session artık merchant backend tarafında oluşturulmalı. InitAutomatic kullanarak session bilgilerini otomatik alabilirsiniz!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="recommendation">
+      <h3>🎯 Önerimiz</h3>
+      <p>
+        Yeni projeler için <strong>InitAutomatic</strong> kullanmanızı öneriyoruz. 
+        Daha hızlı, daha güvenli ve daha az hata ile entegrasyon sağlar.
+      </p>
+    </div>
+  </div>
+</div>

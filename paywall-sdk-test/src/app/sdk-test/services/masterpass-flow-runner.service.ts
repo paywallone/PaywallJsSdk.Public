@@ -327,18 +327,18 @@ export class MasterpassFlowRunnerService {
       return false;
     }
 
-    // Restart session
-    if (!this.flowState.userId || !this.flowState.userPhone) {
-      this.logService.addStep({
-        actionName: 'restartSession',
-        error: 'UserId or UserPhone not found in flow state'
-      });
-      return false;
-    }
+    // Restart session - DEPRECATED: startSession removed
+    this.logService.addStep({
+      actionName: 'restartSession',
+      error: 'startSession is deprecated - use InitAutomatic instead'
+    });
+    return false;
 
+    // OLD CODE - startSession no longer available:
+    /*
     const sessionResponse = await this.callWithHandling(
       'startSession',
-      () => PaywallJsSdk.ExternalService.Masterpass.startSession({
+      () => PaywallJsSdk.ExternalService.Masterpass['startSession']({
         referenceCode: 'REF-' + Date.now(),
         userId: this.flowState.userId!,
         userPhone: this.flowState.userPhone!,
@@ -348,25 +348,13 @@ export class MasterpassFlowRunnerService {
     );
 
     if (sessionResponse.success || sessionResponse.status === 'SUCCESS') {
-      const sessionId = (sessionResponse.data as any)?.sessionId || (sessionResponse as any).sessionId;
+      const sessionId = (sessionResponse.data as any)?.sessionId;
       this.updateFlowState({ sessionId });
-
-      // Re-init provider if needed
-      if (this.flowState.providerInitialized) {
-        const providerResponse = await this.callWithHandling(
-          'providerInit',
-          () => PaywallJsSdk.providers.masterpass.init()
-        );
-
-        if (providerResponse.success || providerResponse.status === 'SUCCESS') {
-          return true; // Session restarted, retry original action
-        }
-      }
-
       return true;
     }
 
     return false;
+    */
   }
 
   /**
