@@ -416,6 +416,7 @@
                 style="margin-left: 10px;">
             {{ addCardSuccess ? '✔' : (addCardError ? '✖' : '○') }}
           </span>
+          <span *ngIf="addCardError" style="margin-left: 10px; color: #c00; font-size: 13px;">{{ addCardError }}</span>
         </div>
       </div>
       <div class="form-row" style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-radius: 4px; border: 1px solid #b3d9ff;">

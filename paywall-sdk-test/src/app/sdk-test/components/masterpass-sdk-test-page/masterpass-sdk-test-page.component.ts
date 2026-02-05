@@ -917,11 +917,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       return;
     }
 
-    const token = this.masterpassToken ?? (flowState as any).masterpassToken;
-    if (!token) {
-      this.addCardError = 'Masterpass token not found';
-      return;
-    }
+    // Token: SDK kendi session state'inden alır (getMasterpassToken); test projesinde ayrıca set etmeye gerek yok.
 
     if (!userPhone) {
       this.addCardError = 'UserPhone (accountKey) is required';
@@ -952,9 +948,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
     this.addCardResponse = null;
 
     try {
-      // Prepare Add Card request payload
+      // Prepare Add Card request payload (SDK token'ı kendi session state'inden alır)
       const addCardParams: any = {
-        token: token,
         userId: userId.trim(),
         accountKey: userPhone,
         accountKeyType: 'Msisdn',
