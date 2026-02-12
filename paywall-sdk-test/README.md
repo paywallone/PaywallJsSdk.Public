@@ -14,7 +14,7 @@ Bu test projesi:
 
 ## Gereksinimler
 
-- Node.js 18+ 
+- Node.js 18+
 - npm veya yarn
 - Angular CLI 19+
 
@@ -114,8 +114,6 @@ Bu sayfada:
 
 ---
 
----
-
 ## SDK Fonksiyonları ve Kullanımı
 
 ### 1. PaywallJsSdk.InitPaywallSdk()
@@ -168,7 +166,7 @@ await PaywallJsSdk.InitPaywallSdk({
 
 ### 2. ~~PaywallJsSdk.ExternalService.Masterpass.startSession()~~
 
-**❌ KALDIRILDI:** Bu metod artık SDK'da bulunmuyor. 
+**❌ KALDIRILDI:** Bu metod artık SDK'da bulunmuyor. Session oluşturma **merchant backend** tarafından yapılmalıdır.
 
 **Kullanım:**
 
@@ -195,18 +193,10 @@ Masterpass provider'ı initialize eder. Session başlatıldıktan sonra çağrı
 #### Request
 
 ```javascript
-await PaywallJsSdk.providers.masterpass.init({
-  accountKey: "5555555555"
-});
+await PaywallJsSdk.providers.masterpass.init();
 ```
 
-**Not:** Bu fonksiyon parametresiz de çağrılabilir. Session state'inden otomatik olarak token ve merchantId alınır.
-
-#### Parametreler
-
-| Parametre | Tip | Açıklama |
-|-----------|-----|----------|
-| `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, opsiyonel) |
+**Not:** Bu fonksiyon parametresiz çağrılır. Session state'inden otomatik olarak token ve merchantId alınır.
 
 #### Başarılı Response
 
@@ -225,22 +215,21 @@ await PaywallJsSdk.providers.masterpass.init({
 
 ---
 
-### 4. PaywallJsSdk.providers.masterpass.addCard()
+### 4. PaywallJsSdk.providers.masterpass.AddCard()
 
 Kart ekler. Kart bilgileri RSA ile şifrelenerek gönderilir.
 
 #### Request
 
 ```javascript
-await PaywallJsSdk.providers.masterpass.addCard({
-  token: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+await PaywallJsSdk.providers.masterpass.AddCard({
   userId: "user-12345",
-  accountKey: "5555555555",
+  accountKey: "905437892802",
   accountKeyType: "Msisdn",
   accountAliasName: "MyCard",
   cardHolderName: "John Doe",
-  cardNumber: "5406670000000001",
-  expiryDate: "2612",
+  cardNumber: "5528790000000008",
+  expiryDate: "2612", // MMYY formatında (Aralık 2026)
   cvv: "123",
   requestReferenceNumber: "111111111111",
   deviceFingerPrint: ""
@@ -251,17 +240,18 @@ await PaywallJsSdk.providers.masterpass.addCard({
 
 | Parametre | Tip | Açıklama |
 |-----------|-----|----------|
-| `token` | string | Masterpass token (session'dan alınan, zorunlu) |
 | `userId` | string | Kullanıcı ID (zorunlu, maksimum 101 karakter) |
 | `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu) |
 | `accountKeyType` | string | Account key tipi: "Msisdn" (zorunlu) |
-| `accountAliasName` | string | Kart için alias adı (opsiyonel, maksimum 41 karakter) |
+| `accountAliasName` | string | Kart için alias adı (zorunlu, maksimum 41 karakter) |
 | `cardHolderName` | string | Kart sahibi adı (zorunlu, maksimum 51 karakter) |
 | `cardNumber` | string | Kart numarası (RSA ile şifrelenecek, zorunlu) |
-| `expiryDate` | string | Son kullanma tarihi (YYMM formatında, örn: "2612", zorunlu) |
+| `expiryDate` | string | Son kullanma tarihi (MMYY formatında, örn: "2612", zorunlu) |
 | `cvv` | string | CVV kodu (RSA ile şifrelenecek, zorunlu) |
 | `requestReferenceNumber` | string | İstek referans numarası (benzersiz, zorunlu) |
 | `deviceFingerPrint` | string | Cihaz parmak izi (opsiyonel, boş string olabilir) |
+
+**⚠️ ÖNEMLİ:** `expiryDate` formatı MMYY'dir (MM/YY değil). Örnek: "2612" = Aralık 2026
 
 #### Başarılı Response (OTP Gerekli)
 
@@ -271,7 +261,7 @@ await PaywallJsSdk.providers.masterpass.addCard({
   "status": "ACTION_REQUIRED",
   "source": "MASTERPASS",
   "actionType": "BANK_OTP",
-  "message": "Bank OTP verification is required. Please enter the OTP code sent by your bank. OTP verification is handled by merchant backend.",
+  "message": "Bank OTP verification is required. Please enter the OTP code sent by your bank.",
   "data": {
     "sessionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
@@ -298,15 +288,15 @@ await PaywallJsSdk.providers.masterpass.addCard({
 
 ---
 
-### 5. PaywallJsSdk.providers.masterpass.deleteCard()
+### 5. PaywallJsSdk.providers.masterpass.removeCard()
 
 Kayıtlı kartı siler.
 
 #### Request
 
 ```javascript
-await PaywallJsSdk.providers.masterpass.deleteCard({
-  accountKey: "5555555555",
+await PaywallJsSdk.providers.masterpass.removeCard({
+  accountKey: "905437892802",
   cardAlias: "MyCard"
 });
 ```
@@ -334,15 +324,19 @@ await PaywallJsSdk.providers.masterpass.deleteCard({
 
 ---
 
-### 6. PaywallJsSdk.providers.masterpass.accessAccount()
+### 6. PaywallJsSdk.providers.masterpass.getCardList()
 
 Kayıtlı kartları listeler.
+
+**⚠️ ÖNEMLİ:** Bu fonksiyon arka planda Masterpass SDK'nın `accountService.accountAccess` metodunu çağırır. Hem kullanıcının merchant'a bağlı olup olmadığını kontrol eder, hem de kayıtlı kartları listeler.
+
+**📌 NOT:** SDK'da `accountAccess` adında ayrı bir public fonksiyon yoktur. Sadece `getCardList` kullanılmalıdır.
 
 #### Request
 
 ```javascript
-await PaywallJsSdk.providers.masterpass.accessAccount({
-  accountKey: "5555555555",
+await PaywallJsSdk.providers.masterpass.getCardList({
+  accountKey: "905437892802",
   accountKeyType: "Msisdn",
   userId: "user-12345"
 });
@@ -354,9 +348,9 @@ await PaywallJsSdk.providers.masterpass.accessAccount({
 |-----------|-----|----------|
 | `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu, maksimum 21 karakter) |
 | `accountKeyType` | string | Account key tipi: "Msisdn" (zorunlu) |
-| `userId` | string | Kullanıcı ID (zorunlu, maksimum 101 karakter) |
+| `userId` | string | Kullanıcı ID (ZORUNLU, maksimum 101 karakter) |
 
-#### Başarılı Response
+#### Başarılı Response (Kullanıcı Merchant'a Bağlı)
 
 ```json
 {
@@ -393,23 +387,62 @@ await PaywallJsSdk.providers.masterpass.accessAccount({
 
 ```json
 {
-  "success": true,
+  "success": false,
   "status": "ACTION_REQUIRED",
   "source": "MASTERPASS",
   "actionType": "MERCHANT_LINK_REQUIRED",
-  "message": "Account is not linked to merchant",
+  "message": "User is not linked to merchant. Please call merchantLink() first.",
   "data": {
-    "providerMeta": {
-      "httpStatus": 404,
-      "responseCode": "ACCOUNT_NOT_LINKED_TO_MERCHANT"
+    "accountInformation": {
+      "isAccountLinked": false
     }
+  }
+}
+```
+
+**İŞ AKIŞI:**
+1. `getCardList()` çağrıldığında önce kullanıcının merchant'a bağlı olup olmadığı kontrol edilir
+2. Eğer `isAccountLinked: false` ise, `merchantLink()` çağrılmalıdır
+3. Merchant link başarılı olduktan sonra tekrar `getCardList()` çağrılabilir
+
+---
+
+### 7. PaywallJsSdk.providers.masterpass.merchantLink()
+
+Kullanıcıyı merchant'a bağlar. Yeni kullanıcılar için `getCardList()` çağrısından önce yapılması gerekir.
+
+#### Request
+
+```javascript
+await PaywallJsSdk.providers.masterpass.merchantLink({
+  accountKey: "905437892802"
+});
+```
+
+#### Parametreler
+
+| Parametre | Tip | Açıklama |
+|-----------|-----|----------|
+| `accountKey` | string | Kullanıcı account key (genellikle telefon numarası, zorunlu) |
+
+#### Başarılı Response (OTP Gerekli)
+
+```json
+{
+  "success": true,
+  "status": "ACTION_REQUIRED",
+  "source": "MASTERPASS",
+  "actionType": "BANK_OTP",
+  "message": "Bank OTP verification is required...",
+  "data": {
+    "token": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
   }
 }
 ```
 
 ---
 
-### 7. PaywallJsSdk.providers.masterpass.verifyOtp()
+### 8. PaywallJsSdk.providers.masterpass.verifyOtp()
 
 OTP kodunu doğrular.
 
@@ -417,8 +450,7 @@ OTP kodunu doğrular.
 
 ```javascript
 await PaywallJsSdk.providers.masterpass.verifyOtp({
-  otpCode: "123456",
-  token: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  otpCode: "123456"
 });
 ```
 
@@ -427,7 +459,8 @@ await PaywallJsSdk.providers.masterpass.verifyOtp({
 | Parametre | Tip | Açıklama |
 |-----------|-----|----------|
 | `otpCode` | string | OTP kodu (zorunlu) |
-| `token` | string | OTP token'ı (addCard veya merchantLink response'undan alınan, zorunlu) |
+
+**⚠️ ÖNEMLİ:** OTP token'ı parametre olarak verilmez, session state'inden otomatik alınır.
 
 #### Başarılı Response
 
@@ -466,7 +499,7 @@ await PaywallJsSdk.providers.masterpass.verifyOtp({
 
 ---
 
-### 8. PaywallJsSdk.providers.masterpass.resendOtp()
+### 9. PaywallJsSdk.providers.masterpass.resendOtp()
 
 OTP kodunu yeniden gönderir.
 
@@ -496,7 +529,7 @@ Bu fonksiyon parametre almaz. OTP token'ı session state'inden otomatik alınır
 
 ---
 
-### 9. PaywallJsSdk.payment.init()
+### 10. PaywallJsSdk.payment.init()
 
 Ödeme işlemini başlatır. Manuel kart veya kayıtlı kart ile ödeme yapılabilir.
 
@@ -508,7 +541,7 @@ await PaywallJsSdk.payment.init({
   paymentSource: "MANUAL_CARD",
   paymentDetail: {
     amount: 100.00,
-    currencyId: 1,
+    currencyId: 949, // TRY
     merchantUniqueCode: "MERCHANT-1111111111111",
     trackingCode: "TRACK-1111111111111",
     successUrl: "https://merchant.com/success",
@@ -522,16 +555,16 @@ await PaywallJsSdk.payment.init({
     ownerName: "John Doe"
   },
   cardData: {
-    cardNumber: "5406670000000001",
+    cardNumber: "5528790000000008",
     ownerName: "John Doe",
-    expiryDate: "2612",
+    expiryDate: "2612", // MMYY formatında
     cvv: "123"
   },
   customer: {
     fullName: "John Doe",
-    phone: "5555555555",
+    phone: "905437892802",
     email: "john@example.com",
-    identityNumber: ""
+    identityNumber: "12345678901"
   },
   products: [
     {
@@ -557,7 +590,7 @@ await PaywallJsSdk.payment.init({
   paymentSource: "REGISTERED_CARD",
   paymentDetail: {
     amount: 100.00,
-    currencyId: 1,
+    currencyId: 949, // TRY
     merchantUniqueCode: "MERCHANT-2222222222222",
     trackingCode: "TRACK-2222222222222",
     successUrl: "https://merchant.com/success",
@@ -576,9 +609,9 @@ await PaywallJsSdk.payment.init({
   },
   customer: {
     fullName: "John Doe",
-    phone: "5555555555",
+    phone: "905437892802",
     email: "john@example.com",
-    identityNumber: ""
+    identityNumber: "12345678901"
   },
   products: [
     {
@@ -604,7 +637,7 @@ await PaywallJsSdk.payment.init({
 | `paymentSource` | string | Ödeme kaynağı: "MANUAL_CARD" veya "REGISTERED_CARD" (zorunlu) |
 | `paymentDetail` | object | Ödeme detayları (zorunlu) |
 | `paymentDetail.amount` | number | Ödeme tutarı (zorunlu) |
-| `paymentDetail.currencyId` | number | Para birimi ID (1: TRY, zorunlu) |
+| `paymentDetail.currencyId` | number | Para birimi ID (949: TRY, zorunlu) |
 | `paymentDetail.merchantUniqueCode` | string | Benzersiz sipariş kodu (zorunlu) |
 | `paymentDetail.trackingCode` | string | Takip kodu (zorunlu) |
 | `paymentDetail.successUrl` | string | Başarı URL'i (zorunlu) |
@@ -618,7 +651,7 @@ await PaywallJsSdk.payment.init({
 | `card.cardAlias` | string | Kayıtlı kart alias'ı (kayıtlı kart için, manuel kart için boş) |
 | `cardData` | object | Masterpass'e gönderilecek hassas kart bilgileri (zorunlu) |
 | `cardData.cardNumber` | string | Kart numarası (manuel kart için, RSA ile şifrelenecek) |
-| `cardData.expiryDate` | string | Son kullanma tarihi (YYMM formatında, manuel kart için) |
+| `cardData.expiryDate` | string | Son kullanma tarihi (MMYY formatında, manuel kart için) |
 | `cardData.cvv` | string | CVV kodu (manuel kart için, RSA ile şifrelenecek) |
 | `cardData.cardAlias` | string | Kayıtlı kart alias'ı (kayıtlı kart için) |
 | `customer` | object | Müşteri bilgileri (opsiyonel) |
@@ -678,7 +711,7 @@ await PaywallJsSdk.payment.init({
 
 ---
 
-### 10. PaywallJsSdk.payment.registerAndPurchase()
+### 11. PaywallJsSdk.payment.registerAndPurchase()
 
 Kart kaydı ve ödeme işlemini tek seferde yapar. Bu fonksiyon hem kart kaydı hem de ödeme işlemini gerçekleştirir.
 
@@ -728,7 +761,8 @@ await PaywallJsSdk.payment.registerAndPurchase({
     fullName: "John Doe",
     email: "john@example.com",
     phone: "905437892802"
-  }
+  },
+  force3D: false
 });
 ```
 
@@ -749,8 +783,6 @@ await PaywallJsSdk.payment.registerAndPurchase({
 | `paymentDetail.failUrl` | string | ✅ | Hata URL'i |
 | `paymentDetail.clientIp` | string | ✅ | İstemci IP adresi |
 | `paymentDetail.installment` | number | ✅ | Taksit sayısı |
-| `paymentDetail.channelId` | number | ❌ | Kanal ID |
-| `paymentDetail.tagId` | number | ❌ | Tag ID |
 | `cardData` | object | ✅ | Kart bilgileri |
 | `cardData.cardNumber` | string | ✅ | Gerçek PAN (ZORUNLU) |
 | `cardData.cardHolderName` | string | ✅ | Kart sahibi adı (ZORUNLU) |
@@ -758,15 +790,8 @@ await PaywallJsSdk.payment.registerAndPurchase({
 | `cardData.cvv` | string | ✅ | CVV (ZORUNLU) |
 | `cardData.cardAlias` | string | ✅ | Kart alias'ı (ZORUNLU - registerAndPurchase için) |
 | `products` | array | ✅ | Ürün listesi |
-| `products[].productId` | string | ✅ | Ürün ID |
-| `products[].productName` | string | ✅ | Ürün adı |
-| `products[].productCategory` | string | ❌ | Ürün kategorisi |
-| `products[].productDescription` | string | ❌ | Ürün açıklaması |
-| `products[].productAmount` | number | ✅ | Ürün tutarı |
 | `customer` | object | ❌ | Müşteri bilgileri |
 | `force3D` | boolean | ❌ | 3D Secure zorunlu mu? (default: `false`) |
-| `secure3DModel` | string | ❌ | `'3D'` veya `'NON_SECURE'` |
-| `isMsisdnValidatedByMerchant` | boolean | ❌ | Telefon merchant tarafından doğrulandı mı? (default: `true`) |
 
 #### Response
 
@@ -806,75 +831,6 @@ await PaywallJsSdk.payment.registerAndPurchase({
 - `responseCode 5010` → `ACTION_REQUIRED`, `actionType: '3D'` (3D Secure doğrulama gerekiyor)
 - Diğer kodlar → `FAILED`
 
-#### Kullanım Örneği
-
-```javascript
-// 1. SDK + Session hazırla
-const initResult = await PaywallJsSdk.InitPaywallSdk({
-  environment: 'test',
-  token: 'TOKEN_FROM_BACKEND',
-  includeMasterpassSession: true
-});
-
-// 2. Provider init
-await PaywallJsSdk.providers.masterpass.init();
-
-// 3. Register and Purchase
-const result = await PaywallJsSdk.payment.registerAndPurchase({
-  sessionId: initResult.data.body.Masterpass.SessionId,
-  accountKey: '905437892802',
-  accountKeyType: 'Msisdn',
-  merchantUserId: 'USER_123',
-  paymentDetail: {
-    amount: 10000, // 100.00 TRY (kuruş cinsinden)
-    currencyId: 949, // TRY
-    merchantUniqueCode: 'ORDER-001',
-    trackingCode: 'TRACK-001',
-    successUrl: 'https://merchant.com/success',
-    failUrl: 'https://merchant.com/fail',
-    clientIp: '192.168.1.1',
-    installment: 1
-  },
-  cardData: {
-    cardNumber: '5528790000000008',
-    cardHolderName: 'John Doe',
-    expiryDate: '2612', // MMYY formatında
-    cvv: '123',
-    cardAlias: 'My Card' // ZORUNLU
-  },
-  products: [
-    {
-      productId: 'PROD-001',
-      productName: 'Product 1',
-      productAmount: 10000
-    }
-  ],
-  customer: {
-    fullName: 'John Doe',
-    email: 'john@example.com',
-    phone: '905437892802'
-  }
-});
-
-// 4. Response handling
-if (result.success) {
-  if (result.data.status === 'SUCCESS') {
-    console.log('Ödeme başarılı!');
-  } else if (result.data.status === 'ACTION_REQUIRED') {
-    if (result.data.actionType === 'BANK_OTP') {
-      // OTP doğrulama ekranı göster
-      // Token'ı merchant backend'e gönder
-      console.log('OTP token:', result.data.token);
-    } else if (result.data.actionType === '3D') {
-      // 3D Secure redirect
-      window.location.href = result.data.redirectUrl;
-    }
-  }
-} else {
-  console.error('Ödeme başarısız:', result.message);
-}
-```
-
 ---
 
 ## Test Senaryoları
@@ -885,20 +841,23 @@ if (result.success) {
 2. **SDK Init**: `PaywallJsSdk.InitPaywallSdk()` ile SDK + Session bilgilerini hazırlayın
 3. **Provider Init**: `PaywallJsSdk.providers.masterpass.init()` ile provider'ı initialize edin
 4. **Payment**: `PaywallJsSdk.payment.init()` ile ödeme işlemini başlatın
-   - **✅ AVANTAJ:** SessionId'yi manuel geçmenize GEREK YOK! SDK otomatik kullanır.
+  - **✅ AVANTAJ:** SessionId'yi manuel geçmenize GEREK YOK! SDK otomatik kullanır.
 
 ### Senaryo 2: Kart Ekleme ve Ödeme
 
 1. InitPaywallSdk → Provider Init adımlarını tamamlayın
-2. **Kart Ekle**: `PaywallJsSdk.providers.masterpass.addCard()` ile kart ekleyin
+2. **Kart Ekle**: `PaywallJsSdk.providers.masterpass.AddCard()` ile kart ekleyin
 3. OTP doğrulaması gerekirse `PaywallJsSdk.providers.masterpass.verifyOtp()` ile doğrulayın
 4. **Payment**: Kayıtlı kart ile `PaywallJsSdk.payment.init()` çağırın
 
-### Senaryo 3: Kayıtlı Kartları Listeleme
+### Senaryo 3: Kayıtlı Kartları Listeleme ve Merchant Link
 
 1. InitPaywallSdk → Provider Init adımlarını tamamlayın
-2. **Kartları Listele**: `PaywallJsSdk.providers.masterpass.accessAccount()` ile kayıtlı kartları listeleyin
-3. Gerekirse merchant link işlemi yapın
+2. **Kartları Listele**: `PaywallJsSdk.providers.masterpass.getCardList()` ile kayıtlı kartları listeleyin
+3. Eğer `MERCHANT_LINK_REQUIRED` hatası alırsanız:
+  - `PaywallJsSdk.providers.masterpass.merchantLink()` ile merchant link işlemi yapın
+  - OTP doğrulaması yapın
+  - Tekrar `getCardList()` çağırın
 4. Listelenen kartlardan biri ile ödeme yapın
 
 ### Senaryo 4: Register and Purchase (Kart Kaydı ve Ödeme Tek Seferde)
@@ -908,7 +867,7 @@ if (result.success) {
 3. OTP veya 3D Secure gerekiyorsa ilgili akışı tamamlayın
 4. Ödeme sonucunu kontrol edin
 
-**Not:** `registerAndPurchase` için `cardAlias` zorunludur.
+**⚠️ ÖNEMLİ:** `registerAndPurchase` için `cardAlias` zorunludur.
 
 ---
 
@@ -920,8 +879,10 @@ if (result.success) {
 - **Her işlemde session parametrelerini geçmenize GEREK YOK**
 
 **❌ KALDIRILDI:**
-- Session oluşturma artık **merchant backend** tarafından yapılmalıdır
+- `startSession()` metodu kaldırıldı - Session oluşturma artık **merchant backend** tarafından yapılmalıdır
 - **userId** ve **userPhone** inputları kaldırıldı - Bu bilgiler backend'den otomatik gelir
+- `accessAccount()` fonksiyonu yok - Sadece `getCardList()` kullanın
+- `deleteCard()` fonksiyonu yok - `removeCard()` kullanın
 
 ---
 
@@ -935,10 +896,12 @@ if (result.success) {
 - Kart bilgileri sadece Masterpass SDK'ya iletilir
 - SDK state'inde, loglarda veya storage'da kart bilgileri tutulmaz
 - 3D Secure akışında `redirectUrl`'e yönlendirme yapılmalıdır
-- OTP doğrulama merchant backend tarafından yapılmalıdır
+- OTP doğrulama `verifyOtp()` fonksiyonu ile yapılır
 - Session başlatılmadan provider fonksiyonları kullanılamaz
 - Provider initialize edilmeden payment fonksiyonları kullanılamaz
 - `registerAndPurchase` için `cardAlias` zorunludur
+- `getCardList` için `userId` zorunludur
+- `expiryDate` formatı MMYY'dir (MM/YY değil)
 - Response code `5001` → OTP gerekiyor
 - Response code `5010` → 3D Secure gerekiyor
 
@@ -953,7 +916,7 @@ Tüm fonksiyonlar aşağıdaki genel response formatını kullanır:
 ```json
 {
   "success": boolean,
-  "status": "SUCCESS" | "ACTION_REQUIRED" | "FAILED" | "ERROR",
+  "status": "SUCCESS" | "ACTION_REQUIRED" | "FAILED",
   "source": "SDK" | "PAYWALL" | "MASTERPASS",
   "message": string,
   "data": object,
@@ -967,13 +930,11 @@ Tüm fonksiyonlar aşağıdaki genel response formatını kullanır:
 - `SUCCESS`: İşlem başarılı
 - `ACTION_REQUIRED`: Kullanıcı etkileşimi gerekli (OTP, 3D Secure, Merchant Link vb.)
 - `FAILED`: İşlem başarısız
-- `ERROR`: Sistem hatası
 
 ### Action Type Değerleri
 
 - `3D`: 3D Secure doğrulama gerekli
 - `BANK_OTP`: Banka OTP doğrulama gerekli
-- `MASTERPASS_OTP_REQUIRED`: Masterpass OTP doğrulama gerekli
 - `MERCHANT_LINK_REQUIRED`: Merchant link işlemi gerekli
 
 ---
@@ -985,12 +946,12 @@ Tüm fonksiyonlar aşağıdaki genel response formatını kullanır:
 | `MISSING_TOKEN` | Token eksik veya boş |
 | `MISSING_CARD_DATA` | Kart bilgileri eksik |
 | `MISSING_CARD_ALIAS` | cardAlias eksik (registerAndPurchase için) |
+| `MISSING_USER_ID` | User ID eksik (getCardList için) |
 | `INVALID_CARD_NUMBER_FORMAT` | Kart numarası formatı geçersiz |
 | `INVALID_EXPIRY_DATE_FORMAT` | Son kullanma tarihi formatı geçersiz |
 | `INVALID_CVV_FORMAT` | CVV formatı geçersiz |
 | `SESSION_EXPIRED` | Session süresi dolmuş |
 | `MISSING_REFERENCE_CODE` | Reference code eksik |
-| `MISSING_USER_ID` | User ID eksik |
 | `MISSING_USER_PHONE` | User phone eksik |
 | `ACCOUNT_NOT_FOUND` | Hesap bulunamadı |
 | `ACCOUNT_NOT_LINKED_TO_MERCHANT` | Hesap merchant'a bağlı değil |
@@ -1011,45 +972,9 @@ Bu rehber, masterpass-sdk-test-page component'inde yapılan tüm değişiklikler
 
 ### DEĞİŞİKLİK 1: Force3D Checkbox'ı Session Alanına Taşıma
 
-**Amaç:** Force3D parametresini session başlatma alanına taşıyarak daha merkezi bir kontrol sağlamak.
-
-#### TypeScript Değişiklikleri
-
-**Dosya:** `masterpass-sdk-test-page.component.ts`
-
-Değişiklik yok - `force3D` zaten mevcut (satır 104).
-
-#### HTML Değişiklikleri
-
-**Dosya:** `masterpass-sdk-test-page.component.html`
+**Amaç:** Force3D parametresini backend'de session oluşturulurken kullanmak.
 
 **Not:** `startSession()` metodu SDK'dan kaldırılmıştır. Force3D parametresi artık backend'de session oluşturulurken kullanılmalıdır.
-
-#### SCSS Değişiklikleri
-
-**Dosya:** `masterpass-sdk-test-page.component.scss`
-
-`.action-group` tanımından sonra ekleyin:
-
-```scss
-.force3d-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  cursor: pointer;
-  font-size: 14px;
-  color: #333;
-  user-select: none;
-
-  input[type="checkbox"] {
-    margin: 0;
-    cursor: pointer;
-    width: 18px;
-    height: 18px;
-  }
-}
-```
 
 ---
 
@@ -1061,7 +986,7 @@ Değişiklik yok - `force3D` zaten mevcut (satır 104).
 
 **Dosya:** `masterpass-sdk-test-page.component.ts`
 
-**1. ngOnInit metoduna customer form otomatik değerleri ekle:**
+**ngOnInit metoduna customer form otomatik değerleri ekle:**
 
 ```typescript
 ngOnInit() {
@@ -1082,8 +1007,6 @@ ngOnInit() {
   });
 }
 ```
-
-**Not:** Customer form zaten mevcut (satır 147-152), sadece ngOnInit'e otomatik değer ataması eklendi.
 
 #### HTML Değişiklikleri
 
@@ -1119,8 +1042,6 @@ ngOnInit() {
 </div>
 ```
 
-**Not:** Customer bilgileri zaten `payWithRegisteredCard()` ve `payWithManualCard()` metodlarında gönderiliyor, değişiklik yok.
-
 ---
 
 ### DEĞİŞİKLİK 3: RegisterAndPurchase Fonksiyonu Ekleme
@@ -1128,8 +1049,6 @@ ngOnInit() {
 **Amaç:** Manuel kartla ödeme alırken, kullanıcının "Kartımı Kaydet ve Öde" seçeneğini işaretlemesi durumunda `registerAndPurchase` fonksiyonunu kullanmak.
 
 #### TypeScript Değişiklikleri
-
-**Dosya:** `masterpass-sdk-test-page.component.ts`
 
 **1. manualCardForm'a saveCardOnPayment ekle:**
 
@@ -1146,216 +1065,11 @@ manualCardForm = {
 };
 ```
 
-**2. payWithManualCard metodunu güncelle:**
+**2. payWithManualCard metodunu güncelle** - kart validasyonundan sonra, mevcut payment.init çağrısından önce ekle.
 
-`payWithManualCard()` metodunda, kart validasyonundan sonra, mevcut payment.init çağrısından önce ekle:
-
-```typescript
-// Eğer "Kartımı Kaydet ve Öde" seçiliyse registerAndPurchase kullan
-if (this.manualCardForm.saveCardOnPayment) {
-  // CardAlias zorunlu kontrolü
-  if (!this.manualCardForm.cardAlias || !this.manualCardForm.cardAlias.trim()) {
-    this.manualPaymentError = 'Card Alias is required when saving card';
-    this.manualPaymentLoading = false;
-    return;
-  }
-  await this.registerAndPurchase(cardNumber);
-  return;
-}
-```
-
-Ayrıca `payWithManualCard()` metodunun başına şu kontrolleri ekle:
-
-```typescript
-if (!this.userPhone) {
-  this.manualPaymentError = 'UserPhone (accountKey) is required for registerAndPurchase';
-  return;
-}
-
-if (!this.userId || !this.userId.trim()) {
-  this.manualPaymentError = 'UserId is required for registerAndPurchase';
-  return;
-}
-```
-
-**3. registerAndPurchase metodunu ekle (payWithManualCard metodundan sonra):**
-
-```typescript
-async registerAndPurchase(cardNumber: string) {
-  try {
-    // Prepare registerAndPurchase request payload
-    const requestPayload: any = {
-      sessionId: this.sessionId!,
-      accountKey: this.userPhone,
-      accountKeyType: 'Msisdn',
-      merchantUserId: this.userId.trim(),
-      paymentDetail: {
-        amount: this.paymentAmount,
-        currencyId: 1,
-        merchantUniqueCode: 'MERCHANT-' + Date.now(),
-        trackingCode: this.trackingCode,
-        successUrl: 'https://merchant.com/success',
-        failUrl: 'https://merchant.com/fail',
-        clientIp: '192.168.1.1',
-        installment: 1
-      },
-      cardData: {
-        cardNumber: cardNumber,
-        cardHolderName: this.manualCardForm.cardHolderName,
-        expiryDate: this.manualCardForm.expiryMonth + this.manualCardForm.expiryYear,
-        cvv: this.manualCardForm.cvv,
-        cardAlias: this.manualCardForm.cardAlias.trim()
-      },
-      products: this.products.map(p => ({
-        productId: p.productId || p.productCode,
-        productName: p.productName,
-        productAmount: p.productAmount || p.totalPrice || 0,
-        productCategory: undefined,
-        productDescription: undefined
-      })),
-      force3D: this.force3D,
-      customer: {
-        fullName: this.customerForm.fullName,
-        phone: this.customerForm.phone,
-        email: this.customerForm.email,
-        identityNumber: this.customerForm.identityNumber
-      }
-    };
-
-    this.logService.addStep({
-      actionName: 'registerAndPurchase',
-      request: this.logService.maskSensitiveData(requestPayload)
-    });
-
-    // Call SDK - registerAndPurchase
-    const response = await PaywallJsSdk.payment.registerAndPurchase(requestPayload);
-    this.manualPaymentResponse = response;
-
-    const maskedResponse = this.logService.maskSensitiveData(response);
-    const normalized = this.logService.normalizeResponse(response);
-
-    this.logService.addStep({
-      actionName: 'registerAndPurchase',
-      response: maskedResponse,
-      normalizedResult: normalized
-    });
-
-    // Handle response
-    // Extract result and responseCode (Masterpass SDK format)
-    const responseAny = response as any;
-    const result = responseAny.result || responseAny.data?.result || responseAny.data;
-    const responseCode = result?.responseCode || responseAny.data?.providerMeta?.responseCode || responseAny.providerMeta?.responseCode;
-    const statusCode = responseAny.statusCode || responseAny.data?.statusCode;
-    const has3DUrl = result?.url3d || responseAny.data?.redirectUrl;
-    const otpToken = result?.token || responseAny.data?.token || responseAny.token;
-    
-    // Check OTP requirement first (5010 for payment)
-    if ((responseCode === '5010' || (statusCode === 202 && result?.responseCode === '5010')) && otpToken) {
-      // Set OTP blocking state
-      this.flowRunner.updateFlowState({
-        awaitingOtp: true,
-        pendingAction: 'registerAndPurchase' as any,
-        otpToken: otpToken
-      });
-      
-      // Open OTP popup
-      this.flowRunner.otpRequired$.next({
-        title: 'Bank OTP Required',
-        message: result?.description || responseAny.data?.message || responseAny.message || 'Please enter OTP code sent to your phone'
-      });
-      
-      this.manualPaymentLoading = false;
-      this.loadLogs();
-      this.updateCurrentState();
-      return; // STOP - no auto-retry, wait for OTP verification
-    }
-    
-    // Check SDK response format
-    if (response.success && response.data) {
-      const data = response.data;
-      
-      if (data.status === 'SUCCESS') {
-        // Payment and card registration successful
-        this.manualPaymentSuccess = true;
-        this.manualPaymentError = null;
-      } else if (data.status === 'ACTION_REQUIRED') {
-        if (data.actionType === '3D') {
-          // 3D Secure required
-          this.manualPaymentError = '3D Secure required. URL: ' + (data.redirectUrl || 'N/A');
-        } else if (data.actionType === 'BANK_OTP') {
-          // OTP verification required
-          if (otpToken) {
-            this.flowRunner.updateFlowState({
-              awaitingOtp: true,
-              pendingAction: 'registerAndPurchase' as any,
-              otpToken: otpToken
-            });
-            
-            this.flowRunner.otpRequired$.next({
-              title: 'Bank OTP Required',
-              message: data.message || 'Please enter OTP code sent to your phone'
-            });
-            
-            this.manualPaymentLoading = false;
-            this.loadLogs();
-            this.updateCurrentState();
-            return;
-          }
-        }
-      } else {
-        // Payment failed
-        this.manualPaymentSuccess = false;
-        this.manualPaymentError = data.message || response.message || 'Payment failed';
-      }
-    } else if (statusCode === 202 && responseCode === '5010') {
-      // Masterpass response format: statusCode 202 with responseCode 5010 means OTP required
-      if (otpToken) {
-        this.flowRunner.updateFlowState({
-          awaitingOtp: true,
-          pendingAction: 'registerAndPurchase' as any,
-          otpToken: otpToken
-        });
-        
-        this.flowRunner.otpRequired$.next({
-          title: 'Bank OTP Required',
-          message: result?.description || 'Please enter OTP code sent to your phone'
-        });
-        
-        this.manualPaymentLoading = false;
-        this.loadLogs();
-        this.updateCurrentState();
-        return;
-      }
-    } else if (statusCode === 202 && has3DUrl) {
-      // 3D Secure required (after OTP or directly)
-      this.manualPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
-    } else if (statusCode === 202) {
-      // Success (202 Accepted)
-      this.manualPaymentSuccess = true;
-      this.manualPaymentError = null;
-    } else {
-      // Request failed
-      this.manualPaymentSuccess = false;
-      this.manualPaymentError = response.message || result?.description || 'Payment failed';
-    }
-  } catch (error: any) {
-    this.manualPaymentSuccess = false;
-    this.manualPaymentError = error.message || 'Payment failed';
-    this.logService.addStep({
-      actionName: 'registerAndPurchase',
-      error: error.message || 'Unknown error'
-    });
-  } finally {
-    this.manualPaymentLoading = false;
-    this.loadLogs();
-    this.updateCurrentState();
-  }
-}
-```
+**3. registerAndPurchase metodunu ekle** (payWithManualCard metodundan sonra) - Detaylı kod yukarıda verilmiştir.
 
 #### HTML Değişiklikleri
-
-**Dosya:** `masterpass-sdk-test-page.component.html`
 
 **Manual Card Payment bölümünde, Card Alias input'undan sonra, "Kart Kaydet" butonundan önce ekle:**
 
@@ -1379,21 +1093,21 @@ async registerAndPurchase(cardNumber: string) {
 
 #### Yapılan Değişiklikler:
 
-1. ✅ **Force3D Checkbox**: Session alanına taşındı, payment alanlarından kaldırıldı
+1. ✅ **Force3D**: Backend'de session oluşturulurken kullanılmalı
 2. ✅ **Customer Bilgileri**: Ekrana eklendi, otomatik değerler atandı (telefon hariç)
 3. ✅ **RegisterAndPurchase**: Yeni fonksiyon eklendi, checkbox ile kontrol ediliyor
 4. ✅ **CardAlias Zorunlu**: RegisterAndPurchase için cardAlias zorunlu kontrolü eklendi
-5. ✅ **CurrencyId**: RegisterAndPurchase'da 1 olarak ayarlandı
+5. ✅ **CurrencyId**: RegisterAndPurchase'da 949 (TRY) olarak ayarlandı
 6. ✅ **OTP Handling**: ResponseCode 5010 kontrolü ve OTP popup açılması eklendi
+7. ✅ **Fonksiyon İsimleri**: `accessAccount` → `getCardList`, `deleteCard` → `removeCard`
+8. ✅ **ExpiryDate Formatı**: MMYY formatı (MM/YY değil)
 
-#### Dosyalar:
+#### Önemli Notlar:
 
-- `masterpass-sdk-test-page.component.ts` - TypeScript değişiklikleri
-- `masterpass-sdk-test-page.component.html` - HTML değişiklikleri  
-- `masterpass-sdk-test-page.component.scss` - SCSS değişiklikleri
-
-#### Notlar:
-
-- Customer bilgileri zaten payment metodlarında gönderiliyor, ek değişiklik gerekmedi
-- OTP handling için mevcut `onOtpSubmit` metodu kullanılıyor
-- `registerAndPurchase` fonksiyonu SDK'da mevcut olmalı (PaywallJsSdk.payment.registerAndPurchase)
+- `startSession()` metodu SDK'dan kaldırılmıştır
+- Session oluşturma merchant backend tarafından yapılmalıdır
+- `accessAccount` fonksiyonu yoktur, sadece `getCardList` kullanın
+- `deleteCard` fonksiyonu yoktur, `removeCard` kullanın
+- `userId` parametresi `getCardList` için zorunludur
+- `cardAlias` parametresi `registerAndPurchase` için zorunludur
+- `expiryDate` formatı MMYY'dir (örn: "2612" = Aralık 2026)

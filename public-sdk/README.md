@@ -57,9 +57,9 @@ SDK'yı CDN üzerinden yüklemek için HTML dosyanıza aşağıdaki script tag'i
 ```html
 <script src="https://cdn.example.com/paywall-jssdk.1.0.4.umd.js"></script>
 <script>
-  if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
-    window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
-  }
+   if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
+      window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
+   }
 </script>
 ```
 
@@ -70,9 +70,9 @@ SDK dosyasını projenize indirip local olarak kullanabilirsiniz:
 ```html
 <script src="/path/to/paywall-jssdk.1.0.4.umd.js"></script>
 <script>
-  if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
-    window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
-  }
+   if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
+      window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
+   }
 </script>
 ```
 
@@ -83,9 +83,9 @@ TypeScript kullanıyorsanız, type definitions dosyasını projenize ekleyin:
 ```typescript
 // paywall-sdk.d.ts
 declare global {
-  interface Window {
-    PaywallJsSdk: PaywallJsSdkType;
-  }
+   interface Window {
+      PaywallJsSdk: PaywallJsSdkType;
+   }
 }
 
 interface PaywallJsSdkType {
@@ -93,7 +93,8 @@ interface PaywallJsSdkType {
       token: string;
       environment: 'dev' | 'test' | 'prod';
       includeMasterpassSession?: boolean;
-  }) => Promise<SdkResponse>;// ... diğer metodlar
+   }) => Promise<SdkResponse>;
+   // ... diğer metodlar
 }
 
 export {};
@@ -362,25 +363,27 @@ const result = await PaywallJsSdk.providers.masterpass.AddCard({
 
 Kayıtlı kartları listeler.
 
+**⚠️ ÖNEMLİ NOT:** Bu fonksiyon arka planda Masterpass SDK'nın `accountService.accountAccess` metodunu çağırır. Hem kullanıcının merchant'a bağlı olup olmadığını kontrol eder, hem de kayıtlı kartları listeler.
+
 **Parametreler:**
 
 | Parametre | Tip | Zorunlu | Açıklama |
 |-----------|-----|---------|----------|
-| `accountKey` | string | ✅ | Kullanıcı account key |
+| `accountKey` | string | ✅ | Kullanıcı account key (genellikle telefon numarası) |
 | `accountKeyType` | string | ✅ | Account key tipi: `'Msisdn'` |
 | `userId` | string | ✅ | Kullanıcı ID |
 
 **Örnek:**
 
 ```typescript
-const cards = await PaywallJsSdk.providers.masterpass.getCardList({
+const result = await PaywallJsSdk.providers.masterpass.getCardList({
   accountKey: '905437892802',
   accountKeyType: 'Msisdn',
   userId: 'USER_123'
 });
 ```
 
-**Response:**
+**Response (Başarılı - Kullanıcı Merchant'a Bağlı):**
 
 ```typescript
 {
@@ -413,6 +416,29 @@ const cards = await PaywallJsSdk.providers.masterpass.getCardList({
 }
 ```
 
+**Response (Kullanıcı Merchant'a Bağlı Değil):**
+
+```typescript
+{
+  success: false,
+  status: 'ACTION_REQUIRED',
+  source: 'MASTERPASS',
+  actionType: 'MERCHANT_LINK_REQUIRED',
+  message: 'User is not linked to merchant. Please call merchantLink() first.',
+  data: {
+    accountInformation: {
+      isAccountLinked: false
+    }
+  }
+}
+```
+
+**İŞ AKIŞI:**
+
+1. `getCardList()` çağrıldığında önce kullanıcının merchant'a bağlı olup olmadığı kontrol edilir
+2. Eğer `isAccountLinked: false` ise, `merchantLink()` çağrılmalıdır
+3. Merchant link başarılı olduktan sonra tekrar `getCardList()` çağrılabilir
+
 ##### `PaywallJsSdk.providers.masterpass.removeCard(params)`
 
 Kayıtlı kartı siler.
@@ -435,31 +461,16 @@ const result = await PaywallJsSdk.providers.masterpass.removeCard({
 
 #### Merchant Link İşlemleri
 
-##### `PaywallJsSdk.providers.masterpass.accountAccess(params)`
-
-Hesap erişimi sağlar ve kayıtlı kartları listeler. **userId ZORUNLU**.
-
-**Parametreler:**
-
-| Parametre | Tip | Zorunlu | Açıklama |
-|-----------|-----|---------|----------|
-| `accountKey` | string | ✅ | Kullanıcı account key |
-| `accountKeyType` | string | ✅ | Account key tipi: `'Msisdn'` |
-| `userId` | string | ✅ | Kullanıcı ID (ZORUNLU) |
-
-**Örnek:**
-
-```typescript
-const account = await PaywallJsSdk.providers.masterpass.accountAccess({
-  accountKey: '905437892802',
-  accountKeyType: 'Msisdn',
-  userId: 'USER_123'
-});
-```
-
 ##### `PaywallJsSdk.providers.masterpass.merchantLink(params)`
 
-Kullanıcıyı merchant'a bağlar.
+Kullanıcıyı merchant'a bağlar. Bu işlem genellikle `getCardList()` çağrısından önce yapılması gerekir.
+
+**KULLANIM SENARYOSU:**
+
+1. Kullanıcı ilk kez ödeme yapmak istediğinde `getCardList()` çağrılır
+2. Eğer kullanıcı merchant'a bağlı değilse (`isAccountLinked: false`), `ACTION_REQUIRED` response'u alınır
+3. Bu durumda `merchantLink()` çağrılmalıdır
+4. Merchant link OTP ile doğrulandıktan sonra tekrar `getCardList()` çağrılabilir
 
 **Parametreler:**
 
@@ -553,7 +564,7 @@ const result = await PaywallJsSdk.providers.masterpass.resendOtp();
 
 | Parametre | Tip | Zorunlu | Açıklama |
 |-----------|-----|---------|----------|
-| `sessionId` | string | ✅ | Session ID (`InitAutomatic` response'undan alınan) |
+| `sessionId` | string | ✅ | Session ID (`InitPaywallSdk` response'undan alınan) |
 | `paymentSource` | string | ✅ | Ödeme kaynağı: `'MANUAL_CARD'` veya `'REGISTERED_CARD'` |
 | `paymentDetail` | object | ✅ | Ödeme detayları |
 | `paymentDetail.amount` | number | ✅ | Ödeme tutarı |
@@ -583,7 +594,7 @@ const result = await PaywallJsSdk.providers.masterpass.resendOtp();
 
 ```typescript
 const payment = await PaywallJsSdk.payment.init({
-  sessionId: session.data.sessionId,
+  sessionId: result.data.body.Masterpass.SessionId,
   paymentSource: 'MANUAL_CARD',
   paymentDetail: {
     amount: 100.00,
@@ -740,7 +751,7 @@ Kart kaydı ve ödeme işlemini tek seferde yapar. Bu fonksiyon hem kart kaydı 
 
 ```typescript
 // 1. SDK + Session hazırla
-const initResult = await PaywallJsSdk.InitAutomatic({
+const initResult = await PaywallJsSdk.InitPaywallSdk({
   environment: 'test',
   token: 'TOKEN_FROM_BACKEND',
   includeMasterpassSession: true
@@ -793,7 +804,6 @@ if (result.success) {
   } else if (result.data.status === 'ACTION_REQUIRED') {
     if (result.data.actionType === 'BANK_OTP') {
       // OTP doğrulama ekranı göster
-      // Token'ı merchant backend'e gönder
       console.log('OTP token:', result.data.token);
     } else if (result.data.actionType === '3D') {
       // 3D Secure redirect
@@ -915,6 +925,7 @@ OTP doğrulandıktan sonra:
 | `SESSION_EXPIRED` | Session süresi dolmuş |
 | `MISSING_TOKEN` | Token eksik |
 | `MISSING_SESSION_ID` | Session ID eksik |
+| `MERCHANT_LINK_REQUIRED` | Kullanıcı merchant'a bağlı değil |
 | `4004` | Kart zaten kayıtlı (Masterpass) |
 | `4005` | User ID zaten kullanımda (Masterpass) |
 | `5001` | OTP doğrulama gerekli (Masterpass) |
@@ -1031,11 +1042,51 @@ if (result.data.actionType === 'BANK_OTP') {
 }
 ```
 
+### 8.5. Merchant Link Kontrolü
+
+- Yeni kullanıcılar için önce `getCardList()` çağırın
+- Eğer `MERCHANT_LINK_REQUIRED` hatası alırsanız, `merchantLink()` ile kullanıcıyı bağlayın
+- OTP doğrulamasından sonra tekrar `getCardList()` çağırın
+
+```typescript
+async function ensureMerchantLink() {
+  // Önce kart listesini al
+  const cards = await PaywallJsSdk.providers.masterpass.getCardList({
+    accountKey: '905437892802',
+    accountKeyType: 'Msisdn',
+    userId: 'USER_123'
+  });
+  
+  // Eğer merchant link gerekiyorsa
+  if (cards.actionType === 'MERCHANT_LINK_REQUIRED') {
+    // Merchant link yap
+    const link = await PaywallJsSdk.providers.masterpass.merchantLink({
+      accountKey: '905437892802'
+    });
+    
+    // OTP doğrulaması
+    if (link.actionType === 'BANK_OTP') {
+      const otpCode = await getUserInput('OTP kodunu girin:');
+      await PaywallJsSdk.providers.masterpass.verifyOtp({ otpCode });
+      
+      // Tekrar kart listesini al
+      return await PaywallJsSdk.providers.masterpass.getCardList({
+        accountKey: '905437892802',
+        accountKeyType: 'Msisdn',
+        userId: 'USER_123'
+      });
+    }
+  }
+  
+  return cards;
+}
+```
+
 ---
 
 ## 9. Örnekler
 
-### 9.1. Tam Ödeme Akışı
+### 9.1. Tam Ödeme Akışı (Kayıtlı Kart)
 
 ```typescript
 async function completePaymentFlow() {
@@ -1056,7 +1107,26 @@ async function completePaymentFlow() {
     
     const sessionId = initResult.data.body.Masterpass.SessionId;
     
-    // 3. Payment
+    // 3. Önce kartları listele
+    const cards = await PaywallJsSdk.providers.masterpass.getCardList({
+      accountKey: '905437892802',
+      accountKeyType: 'Msisdn',
+      userId: 'USER_123'
+    });
+    
+    // Eğer merchant link gerekiyorsa
+    if (cards.actionType === 'MERCHANT_LINK_REQUIRED') {
+      // Merchant link akışını tamamla
+      await handleMerchantLink();
+      // Tekrar kartları listele
+      const cardsAfterLink = await PaywallJsSdk.providers.masterpass.getCardList({
+        accountKey: '905437892802',
+        accountKeyType: 'Msisdn',
+        userId: 'USER_123'
+      });
+    }
+    
+    // 4. Payment
     const payment = await PaywallJsSdk.payment.init({
       sessionId: sessionId,
       paymentSource: 'REGISTERED_CARD',
@@ -1088,7 +1158,7 @@ async function completePaymentFlow() {
       ]
     });
     
-    // 4. Response Handling
+    // 5. Response Handling
     if (payment.success && payment.data.status === 'SUCCESS') {
       console.log('Ödeme başarılı!');
       return { success: true, data: payment.data };
@@ -1124,21 +1194,21 @@ async function merchantLinkFlow() {
     // 2. Provider Init
     await PaywallJsSdk.providers.masterpass.init();
     
-    // 4. Account Access
-    const account = await PaywallJsSdk.providers.masterpass.accountAccess({
+    // 3. Kart Listesi - Bu kontrol eder ve gerekiyorsa MERCHANT_LINK_REQUIRED döner
+    const cardsCheck = await PaywallJsSdk.providers.masterpass.getCardList({
       accountKey: '905437892802',
       accountKeyType: 'Msisdn',
       userId: 'USER_123'
     });
     
-    if (account.data.status === 'ACTION_REQUIRED' && account.data.actionType === 'MERCHANT_LINK_REQUIRED') {
-      // 5. Merchant Link
+    if (cardsCheck.actionType === 'MERCHANT_LINK_REQUIRED') {
+      // 4. Merchant Link
       const link = await PaywallJsSdk.providers.masterpass.merchantLink({
         accountKey: '905437892802'
       });
       
       if (link.data.status === 'ACTION_REQUIRED' && link.data.actionType === 'BANK_OTP') {
-        // 6. OTP Doğrulama
+        // 5. OTP Doğrulama
         const otpCode = await getUserInput('OTP kodunu girin:');
         const verify = await PaywallJsSdk.providers.masterpass.verifyOtp({
           otpCode: otpCode
@@ -1150,7 +1220,7 @@ async function merchantLinkFlow() {
       }
     }
     
-    // 7. Kart Listesi
+    // 6. Artık kartları listeleyebiliriz
     const cards = await PaywallJsSdk.providers.masterpass.getCardList({
       accountKey: '905437892802',
       accountKeyType: 'Msisdn',
@@ -1301,11 +1371,6 @@ interface PaywallJsSdkType {
       removeCard: (params: {
         accountKey: string;
         cardAlias: string;
-      }) => Promise<SdkResponse>;
-      accountAccess: (params: {
-        accountKey: string;
-        accountKeyType: string;
-        userId: string;
       }) => Promise<SdkResponse>;
       merchantLink: (params: {
         accountKey: string;
@@ -1471,6 +1536,7 @@ Sorun bildirmek veya özellik isteği yapmak için GitHub Issues kullanabilirsin
 - `registerAndPurchase` için `cardAlias` zorunludur
 - Response code `5001` → OTP gerekiyor
 - Response code `5010` → 3D Secure gerekiyor
+- Kullanıcı merchant'a bağlı değilse önce `merchantLink()` çağrılmalıdır
 
 ---
 
