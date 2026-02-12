@@ -490,24 +490,6 @@ const result = await PaywallJsSdk.providers.masterpass.merchantLink({
 }
 ```
 
-##### `PaywallJsSdk.providers.masterpass.merchantUnlink(params)`
-
-Merchant bağlantısını kaldırır.
-
-**Parametreler:**
-
-| Parametre | Tip | Zorunlu | Açıklama |
-|-----------|-----|---------|----------|
-| `accountKey` | string | ✅ | Kullanıcı account key |
-
-**Örnek:**
-
-```typescript
-const result = await PaywallJsSdk.providers.masterpass.merchantUnlink({
-  accountKey: '905437892802'
-});
-```
-
 ##### `PaywallJsSdk.providers.masterpass.verifyOtp(params)`
 
 OTP kodunu doğrular.
@@ -1326,9 +1308,6 @@ interface PaywallJsSdkType {
         userId: string;
       }) => Promise<SdkResponse>;
       merchantLink: (params: {
-        accountKey: string;
-      }) => Promise<SdkResponse>;
-      merchantUnlink: (params: {
         accountKey: string;
       }) => Promise<SdkResponse>;
       verifyOtp: (params: {

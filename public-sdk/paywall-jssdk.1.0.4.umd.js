@@ -465,43 +465,55 @@
 	 */
 	/**
 	 * Başarılı response oluşturur.
+	 * providerMeta artık data objesinin içinde döner.
 	 */
 	function createSuccessResponse(source, data, message, providerMeta) {
+		// providerMeta varsa data içine ekle
+		const finalData = providerMeta
+			? { ...data, providerMeta }
+			: data;
 		return {
 			success: true,
 			status: 'SUCCESS',
 			source,
 			...(message && { message }),
-			...(data && { data }),
-			...(providerMeta && { providerMeta }),
+			...(finalData && { data: finalData }),
 		};
 	}
 	/**
 	 * Başarısız response oluşturur.
+	 * providerMeta artık data objesinin içinde döner.
 	 */
 	function createFailedResponse(source, message, errorCode, providerMeta, additionalData) {
+		// providerMeta varsa data içine ekle
+		const finalData = providerMeta
+			? { providerMeta, ...(additionalData || {}) }
+			: additionalData;
 		return {
 			success: false,
 			status: 'FAILED',
 			source,
 			message,
 			...(errorCode && { errorCode }),
-			...(providerMeta && { providerMeta }),
-			...(additionalData && additionalData),
+			...(finalData && { data: finalData }),
 		};
 	}
 	/**
 	 * Aksiyon gerekli response oluşturur.
+	 * providerMeta artık data objesinin içinde döner.
 	 */
 	function createActionRequiredResponse(source, actionType, message, data, providerMeta, actionHint) {
+		// providerMeta varsa data içine ekle
+		const finalData = providerMeta
+			? { ...data, providerMeta }
+			: data;
 		return {
 			success: true,
 			status: 'ACTION_REQUIRED',
 			source,
 			actionType,
 			message,
-			...(data && { data }),
-			...(providerMeta && { providerMeta }),
+			...(finalData && { data: finalData }),
 			...(actionHint),
 		};
 	}
@@ -5690,64 +5702,99 @@
 		 */
 		PaymentType[PaymentType["Otp"] = 3] = "Otp";
 	})(exports.PaymentType || (exports.PaymentType = {}));
-	// Paywall'dan gelen MasterpassRequestBody'i clone eder ve placeholder'ları gerçek kart bilgileriyle replace eder (PCI-DSS: kart bilgileri sadece Masterpass SDK'ya iletilir)
-	function buildMasterpassPayload(masterpassRequestBody, cardData, paymentSource, metadata) {
-		// Paywall'dan gelen MasterpassRequestBody'i deep clone et
-		const payload = JSON.parse(JSON.stringify(masterpassRequestBody));
-		// Paywall backend'den gelen metadata'ları payload'a ekle
-		// Bu metadata'lar Masterpass SDK için gereklidir
-		if (metadata) {
-			if (metadata.paymentId) {
-				payload.paymentId = metadata.paymentId;
+	function getPlainCardForMasterpass(cardData) {
+		const cardNumberPlain = (cardData.cardNumber ?? '').toString().replace(/\s/g, '');
+		let cvvPlain = '';
+		if (cardData.cvv != null && String(cardData.cvv).trim().length > 0) {
+			cvvPlain = String(cardData.cvv).trim();
+		}
+		else if (cardData.cvc != null && String(cardData.cvc).trim().length > 0) {
+			cvvPlain = String(cardData.cvc).trim();
+		}
+		const expiry = (cardData.expiryDate ?? '').toString().replace(/\s/g, '');
+		const expiryYYMM = expiry.length >= 4 ? `${expiry.substring(2, 4)}${expiry.substring(0, 2)}` : '';
+		const cardHolderNamePlain = (cardData.cardHolderName ?? cardData.ownerName ?? '').toString().trim();
+		const cardAliasPlain = (cardData.cardAlias ?? '').toString().trim();
+		return {
+			cardNumberPlain,
+			cvvPlain,
+			expiryYYMM,
+			cardHolderNamePlain,
+			cardAliasPlain,
+		};
+	}
+	/**
+	 * Payload içinde placeholder string'leri plain değerlerle değiştirir.
+	 * DEFENSIVE: undefined/null alanlarda replace veya string işlemi ASLA yapılmaz.
+	 */
+	function replacePlaceholdersInPayload(obj, replacements) {
+		if (obj == null)
+			return;
+		if (Array.isArray(obj)) {
+			for (let i = 0; i < obj.length; i++) {
+				const v = obj[i];
+				if (v == null)
+					continue;
+				if (typeof v === 'string' && replacements[v] !== undefined) {
+					obj[i] = replacements[v];
+				}
+				else if (typeof v === 'object') {
+					replacePlaceholdersInPayload(v, replacements);
+				}
 			}
-			if (metadata.masterpassPaymentId) {
-				payload.masterpassPaymentId = metadata.masterpassPaymentId;
-			}
-			if (metadata.activityId) {
-				payload.activityId = metadata.activityId;
-			}
-			if (metadata.uniqueCode) {
-				payload.uniqueCode = metadata.uniqueCode;
+			return;
+		}
+		if (typeof obj === 'object') {
+			for (const key of Object.keys(obj)) {
+				const v = obj[key];
+				if (v == null)
+					continue;
+				if (typeof v === 'string' && replacements[v] !== undefined) {
+					obj[key] = replacements[v];
+				}
+				else if (typeof v === 'object') {
+					replacePlaceholdersInPayload(v, replacements);
+				}
 			}
 		}
+	}
+	/**
+	 * Masterpass ödeme request builder.
+	 * KRİTİK: SDK içinde cardNumber / cvv / expiryDate ASLA şifrelenmez.
+	 * Şifreleme SADECE Masterpass / VPOS tarafında yapılır.
+	 * Body formatı: { cardNumber: "PLAIN", cvv: "123", expiryDate: "YYMM" } (plain string).
+	 */
+	function buildMasterpassPayload(masterpassRequestBody, cardData, paymentSource, metadata) {
+		const payload = JSON.parse(JSON.stringify(masterpassRequestBody));
+		if (metadata) {
+			if (metadata.paymentId)
+				payload.paymentId = metadata.paymentId;
+			if (metadata.masterpassPaymentId)
+				payload.masterpassPaymentId = metadata.masterpassPaymentId;
+			if (metadata.activityId)
+				payload.activityId = metadata.activityId;
+			if (metadata.uniqueCode)
+				payload.uniqueCode = metadata.uniqueCode;
+		}
+		const plain = getPlainCardForMasterpass(cardData);
+		const securityCodePlain = plain.cvvPlain;
+		payload.cvv = securityCodePlain;
+		payload.cvc = securityCodePlain;
 		if (paymentSource === exports.PaymentSource.REGISTERED_CARD) {
-			if (cardData.cardAlias)
-				payload.cardAlias = cardData.cardAlias;
-			if (cardData.cardNumber)
-				payload.cardNumber = cardData.cardNumber;
-			if (cardData.cvv) {
-				payload.cvc = cardData.cvv;
-				payload.cvv = cardData.cvv;
-			}
-			else {
-				payload.cvc = '';
-				payload.cvv = '';
-			}
-			if (cardData.cardHolderName) {
-				payload.cardHolderName = cardData.cardHolderName;
-			}
-			else if (cardData.ownerName) {
-				payload.cardHolderName = cardData.ownerName;
-			}
+			if (plain.cardAliasPlain)
+				payload.cardAlias = plain.cardAliasPlain;
+			if (plain.cardNumberPlain)
+				payload.cardNumber = plain.cardNumberPlain;
+			if (plain.cardHolderNamePlain)
+				payload.cardHolderName = plain.cardHolderNamePlain;
 		}
 		if (paymentSource === exports.PaymentSource.MANUAL_CARD) {
-			if (cardData.cardNumber)
-				payload.cardNumber = cardData.cardNumber;
-			if (cardData.expiryDate) {
-				const mm = cardData.expiryDate.substring(0, 2);
-				const yy = cardData.expiryDate.substring(2, 4);
-				payload.expiryDate = `${yy}${mm}`;
-			}
-			if (cardData.cvv) {
-				payload.cvc = cardData.cvv;
-				payload.cvv = cardData.cvv;
-			}
-			if (cardData.cardHolderName) {
-				payload.cardHolderName = cardData.cardHolderName;
-			}
-			else if (cardData.ownerName) {
-				payload.cardHolderName = cardData.ownerName;
-			}
+			if (plain.cardNumberPlain)
+				payload.cardNumber = plain.cardNumberPlain;
+			if (plain.expiryYYMM)
+				payload.expiryDate = plain.expiryYYMM;
+			if (plain.cardHolderNamePlain)
+				payload.cardHolderName = plain.cardHolderNamePlain;
 			if (payload.cardAlias)
 				delete payload.cardAlias;
 		}
@@ -5755,6 +5802,17 @@
 		if (session?.masterpassTerminalGroupId) {
 			payload.terminalGroupId = session.masterpassTerminalGroupId;
 		}
+		const replacements = {};
+		replacements['%CVV_REPLACE%'] = securityCodePlain;
+		if (plain.cardNumberPlain)
+			replacements['%CARD_NUMBER_REPLACE%'] = plain.cardNumberPlain;
+		if (plain.expiryYYMM)
+			replacements['%EXPIRY_DATE_REPLACE%'] = plain.expiryYYMM;
+		if (plain.cardHolderNamePlain)
+			replacements['%CARD_HOLDER_NAME_REPLACE%'] = plain.cardHolderNamePlain;
+		if (plain.cardAliasPlain)
+			replacements['%CARD_ALIAS_REPLACE%'] = plain.cardAliasPlain;
+		replacePlaceholdersInPayload(payload, replacements);
 		return payload;
 	}
 	/**
@@ -6036,7 +6094,7 @@
 				if (!cardData.cardNumber || cardData.cardNumber.trim() === '') {
 					return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CARD_NUMBER_MANUAL, 'MISSING_CARD_NUMBER');
 				}
-				const cardNumberClean = cardData.cardNumber.replace(/\s/g, '');
+				const cardNumberClean = (cardData.cardNumber ?? '').replace(/\s/g, '');
 				if (cardNumberClean.length < 13 || cardNumberClean.length > 19) {
 					return createFailedResponse('SDK', getMessage('INVALID_CARD_NUMBER_FORMAT', cardNumberClean.length), 'INVALID_CARD_NUMBER_FORMAT');
 				}
@@ -6231,6 +6289,9 @@
 						...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
 						...(paymentInitData.uniqueCode !== undefined && { uniqueCode: paymentInitData.uniqueCode }),
 					});
+					const securityCodeInit = (masterpassPayload.cvv ?? params.cardData?.cvv ?? params.cardData?.cvc ?? '').toString().trim();
+					masterpassPayload.cvv = securityCodeInit;
+					masterpassPayload.cvc = securityCodeInit;
 					logDebugFlow(config, {
 						functionName: 'initPayment',
 						stepName: 'masterpass-payload-built',
@@ -6284,7 +6345,7 @@
 						let baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
 						if (baseUrl3d && masterpassReturnQueryString) {
 							const separator = baseUrl3d.includes('?') ? '&' : '?';
-							threeDAddress = `${baseUrl3d}${separator}${masterpassReturnQueryString.replace(/^[?&]/, '')}`;
+							threeDAddress = `${baseUrl3d}${separator}${(masterpassReturnQueryString ?? '').replace(/^[?&]/, '')}`;
 						}
 						else {
 							threeDAddress = baseUrl3d;
@@ -6296,7 +6357,7 @@
 						if (mpResult?.url3dSuccess) {
 							if (masterpassReturnQueryString) {
 								const separator = mpResult.url3dSuccess.includes('?') ? '&' : '?';
-								finalUrl3dSuccess = `${mpResult.url3dSuccess}${separator}${masterpassReturnQueryString.replace(/^[?&]/, '')}`;
+								finalUrl3dSuccess = `${mpResult.url3dSuccess}${separator}${(masterpassReturnQueryString ?? '').replace(/^[?&]/, '')}`;
 							}
 							else {
 								finalUrl3dSuccess = mpResult.url3dSuccess;
@@ -6305,7 +6366,7 @@
 						if (mpResult?.url3dFail) {
 							if (masterpassReturnQueryString) {
 								const separator = mpResult.url3dFail.includes('?') ? '&' : '?';
-								finalUrl3dFail = `${mpResult.url3dFail}${separator}${masterpassReturnQueryString.replace(/^[?&]/, '')}`;
+								finalUrl3dFail = `${mpResult.url3dFail}${separator}${(masterpassReturnQueryString ?? '').replace(/^[?&]/, '')}`;
 							}
 							else {
 								finalUrl3dFail = mpResult.url3dFail;
@@ -6451,6 +6512,11 @@
 							catch (markError) {
 							}
 						}
+						const fallbackProviderMeta = {
+							httpStatus: errorStatusCode || 200,
+							responseCode: responseCode,
+							raw: errorResponse,
+						};
 						const fallbackResult = {
 							sessionId: params.sessionId,
 							status: fallbackStatus,
@@ -6467,20 +6533,15 @@
 							...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
 							...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
 							...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
-							providerMeta: {
-								httpStatus: errorStatusCode || 200,
-								responseCode: responseCode,
-								raw: errorResponse,
-							},
 						};
 						if (fallbackStatus === 'SUCCESS') {
-							return createSuccessResponse('MASTERPASS', fallbackResult, fallbackDescription, fallbackResult.providerMeta);
+							return createSuccessResponse('MASTERPASS', fallbackResult, fallbackDescription, fallbackProviderMeta);
 						}
 						else if (fallbackStatus === 'ACTION_REQUIRED' && fallbackActionType) {
-							return createActionRequiredResponse('MASTERPASS', fallbackActionType, fallbackDescription, fallbackResult, fallbackResult.providerMeta);
+							return createActionRequiredResponse('MASTERPASS', fallbackActionType, fallbackDescription, fallbackResult, fallbackProviderMeta);
 						}
 						else {
-							return createFailedResponse('MASTERPASS', fallbackDescription, fallbackResult.providerMeta?.responseCode || 'MASTERPASS_ERROR', fallbackResult.providerMeta);
+							return createFailedResponse('MASTERPASS', fallbackDescription, fallbackProviderMeta?.responseCode || 'MASTERPASS_ERROR', fallbackProviderMeta);
 						}
 					}
 					// Exception bilgilerini kullanarak anlamlı mesaj oluştur
@@ -6709,7 +6770,7 @@
 				return createFailedResponse('SDK', 'cardAlias is required for registerAndPurchase. Please provide a card alias for card registration.', 'MISSING_CARD_ALIAS');
 			}
 			// Card validation
-			const cardNumberClean = params.cardData.cardNumber.replace(/\s/g, '');
+			const cardNumberClean = (params.cardData.cardNumber ?? '').replace(/\s/g, '');
 			if (cardNumberClean.length < 13 || cardNumberClean.length > 19) {
 				return createFailedResponse('SDK', getMessage('INVALID_CARD_NUMBER_FORMAT', cardNumberClean.length), 'INVALID_CARD_NUMBER_FORMAT');
 			}
@@ -6836,16 +6897,14 @@
 					...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
 					...(paymentInitData.uniqueCode !== undefined && { uniqueCode: paymentInitData.uniqueCode }),
 				});
-			// registerAndPurchase için özel alanlar ekle
-			// NOT: orderProductsDetails, buyerDetails, billDetails, deliveryDetails vb. Paywall'dan gelen MasterpassRequestBody içinde zaten var
-			// buildMasterpassPayload bunları korur, sadece kart bilgilerini replace eder
-			// ⚠️ KRİTİK: buildMasterpassPayload MANUAL_CARD için cardAlias'ı siliyor
-			// registerAndPurchase için cardAlias zorunlu olduğu için tekrar ekliyoruz
 			registerAndPurchasePayload.cardAlias = params.cardData.cardAlias;
 			registerAndPurchasePayload.accountKey = params.accountKey;
 			registerAndPurchasePayload.accountKeyType = params.accountKeyType;
 			registerAndPurchasePayload.merchantUserId = params.merchantUserId;
 			registerAndPurchasePayload.isMsisdnValidatedByMerchant = params.isMsisdnValidatedByMerchant ?? true;
+			const securityCode = (registerAndPurchasePayload.cvv ?? params.cardData.cvv ?? params.cardData.cvc ?? '').toString().trim();
+			registerAndPurchasePayload.cvv = securityCode;
+			registerAndPurchasePayload.cvc = securityCode;
 			logDebugFlow(config, {
 				functionName: 'registerAndPurchase',
 				stepName: 'masterpass-payload-built',
@@ -6913,7 +6972,7 @@
 				let baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
 				if (baseUrl3d && paymentInitData.masterpassReturnQueryString) {
 					const separator = baseUrl3d.includes('?') ? '&' : '?';
-					threeDAddress = `${baseUrl3d}${separator}${paymentInitData.masterpassReturnQueryString.replace(/^[?&]/, '')}`;
+					threeDAddress = `${baseUrl3d}${separator}${(paymentInitData.masterpassReturnQueryString ?? '').replace(/^[?&]/, '')}`;
 				}
 				else {
 					threeDAddress = baseUrl3d;
@@ -6989,7 +7048,6 @@
 				...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
 				...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
 				...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
-				providerMeta: providerMeta,
 			};
 			if (paymentStatus === 'SUCCESS') {
 				return createSuccessResponse('PAYWALL', result, description, providerMeta);
@@ -7328,20 +7386,23 @@
 				if (params.cardAlias && params.cardAlias !== '') {
 					// Kayıtlı kart ile ödeme - Masterpass.paymentService.payment()
 					masterpassParams.cardAlias = params.cardAlias;
-					masterpassParams.cvc = ''; // Kayıtlı kart için CVC opsiyonel olabilir
+					masterpassParams.cvv = '';
+					masterpassParams.cvc = '';
 					masterpassResponse = await masterpassPayment(masterpassParams);
 				}
 				else if (params.cardNumber && params.expireMonth && params.expireYear && params.cvv) {
-					// Yeni kart ile direkt ödeme - Masterpass.paymentService.directPayment()
-					// Expiry date'i YYMM formatına çevir (backend YYMM bekliyor, MMYY değil)
-					const expireMonth = params.expireMonth.padStart(2, '0');
-					const expireYear = params.expireYear.length === 2 ? params.expireYear : params.expireYear.slice(-2);
-					// Backend YYMM formatı bekliyor (MMYY değil)
-					const expiryDate = `${expireYear}${expireMonth}`; // YYMM formatı
-					masterpassParams.cardNumber = params.cardNumber;
-					masterpassParams.expiryDate = expiryDate;
-					masterpassParams.cvv = params.cvv;
-					// NOT: Bu bilgiler sadece Masterpass SDK'ya gidecek, Paywall'a gitmez
+					const expiryMMYY = (params.expireMonth ?? '').toString().padStart(2, '0') +
+						((params.expireYear ?? '').length === 2 ? (params.expireYear ?? '') : (params.expireYear ?? '').slice(-2));
+					const plain = getPlainCardForMasterpass({
+						cardNumber: params.cardNumber,
+						expiryDate: expiryMMYY,
+						cvv: params.cvv,
+						...(params.cvc != null && params.cvc !== '' && { cvc: params.cvc }),
+					});
+					masterpassParams.cardNumber = plain.cardNumberPlain;
+					masterpassParams.expiryDate = plain.expiryYYMM;
+					masterpassParams.cvv = plain.cvvPlain;
+					masterpassParams.cvc = plain.cvvPlain;
 					masterpassResponse = await masterpassDirectPayment(masterpassParams);
 				}
 				else {
@@ -7685,20 +7746,10 @@
 		catch (error) {
 			// Hata durumunda FAILED response döndür (throw ETME)
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				status: 'FAILED',
-				source: 'SDK',
-				message: `Masterpass provider initialization failed: ${errorMessage}`,
-				errorCode: 'MASTERPASS_PROVIDER_INIT_ERROR',
-				data: {
-					masterpassSdkInitialized: false,
-				},
-				providerMeta: {
-					responseCode: 'MASTERPASS_PROVIDER_INIT_ERROR',
-					raw: error,
-				},
-			};
+			return createFailedResponse('SDK', `Masterpass provider initialization failed: ${errorMessage}`, 'MASTERPASS_PROVIDER_INIT_ERROR', {
+				responseCode: 'MASTERPASS_PROVIDER_INIT_ERROR',
+				raw: error,
+			}, { masterpassSdkInitialized: false });
 		}
 	}
 
@@ -7827,7 +7878,7 @@
 			if (!params.cardNumber || params.cardNumber.trim() === '') {
 				return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CARD_NUMBER, 'MISSING_CARD_NUMBER');
 			}
-			const cardNumberLength = params.cardNumber.replace(/\s/g, '').length;
+			const cardNumberLength = (params.cardNumber ?? '').toString().replace(/\s/g, '').length;
 			if (cardNumberLength < 13 || cardNumberLength > 19) {
 				return createFailedResponse('SDK', getMessage('INVALID_CARD_NUMBER_FORMAT', cardNumberLength), 'INVALID_CARD_NUMBER_FORMAT');
 			}
@@ -7857,8 +7908,11 @@
 			if (!Masterpass.accountService || typeof Masterpass.accountService.addCard !== 'function') {
 				return createFailedResponse('SDK', 'Masterpass SDK API mismatch: expected accountService.addCard.', 'API_MISMATCH');
 			}
-			const mm = params.expiryDate.substring(0, 2);
-			const yy = params.expiryDate.substring(2, 4);
+			// Masterpass'e sadece plain (ham) kart bilgisi; SDK şifreleme YAPMAZ
+			const cardNumberPlain = (params.cardNumber ?? '').toString().replace(/\s/g, '');
+			const exp = (params.expiryDate ?? '').toString();
+			const mm = exp.substring(0, 2);
+			const yy = exp.substring(2, 4);
 			const expiryDateYYMM = `${yy}${mm}`;
 			const masterpassParams = {
 				token: masterpassToken,
@@ -7867,7 +7921,7 @@
 				accountKeyType: params.accountKeyType || 'Msisdn',
 				accountAliasName: params.accountAliasName,
 				cardHolderName: params.cardHolderName,
-				cardNumber: params.cardNumber,
+				cardNumber: cardNumberPlain,
 				expiryDate: expiryDateYYMM,
 				cvv: params.cvv,
 				requestReferenceNumber: params.requestReferenceNumber,
@@ -8329,159 +8383,6 @@
 			});
 			logDebugFlow(config, {
 				functionName: 'linkMerchant',
-				stepName: 'error-handling',
-				normalizedSdkResponse: errorResponse,
-				rawProviderResponse: masterpassResponse,
-			});
-			return errorResponse;
-		}
-	}
-	/**
-	 * Internal merchant unlink implementation.
-	 * @internal
-	 */
-	async function unlinkMerchantInternal(params) {
-		try {
-			const config = getConfig();
-			if (!isSessionValid()) {
-				return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.ACTION_HINT_START_SESSION });
-			}
-			if (typeof window === 'undefined') {
-				return createFailedResponse('SDK', SDK_MESSAGES.BROWSER_REQUIRED, 'BROWSER_REQUIRED');
-			}
-			const masterpassToken = getMasterpassToken();
-			if (!masterpassToken || masterpassToken.trim() === '') {
-				return createFailedResponse('SDK', SDK_MESSAGES.MISSING_TOKEN, 'MISSING_TOKEN');
-			}
-			if (!isProviderInitialized('masterpass')) {
-				return createFailedResponse('SDK', SDK_MESSAGES.PROVIDER_NOT_INITIALIZED, 'PROVIDER_NOT_INITIALIZED');
-			}
-			if (!params.accountKey || params.accountKey.trim() === '') {
-				return createFailedResponse('SDK', SDK_MESSAGES.MISSING_ACCOUNT_KEY, 'MISSING_ACCOUNT_KEY');
-			}
-			await loadMasterpassSdk();
-			const Masterpass = window.Masterpass;
-			if (!Masterpass) {
-				return createFailedResponse('SDK', SDK_MESSAGES.SDK_NOT_LOADED, 'SDK_NOT_LOADED');
-			}
-			if (!isMasterpassInitialized()) {
-				await ensureMasterpassInitialized();
-			}
-			if (!Masterpass.accountService || typeof Masterpass.accountService.removeCard !== 'function') {
-				return createFailedResponse('SDK', 'Masterpass SDK API mismatch: expected accountService.removeCard.', 'API_MISMATCH');
-			}
-			const masterpassParams = {
-				token: masterpassToken,
-				accountKey: params.accountKey,
-				...(params.cardAlias && { cardAlias: params.cardAlias }),
-			};
-			logDebugFlow(config, {
-				functionName: 'unlinkMerchant',
-				stepName: 'masterpass-sdk-request',
-				requestPayload: { ...masterpassParams, token: '***' },
-			});
-			let statusCode;
-			let response;
-			try {
-				const result = await masterpassRemoveCard(masterpassParams);
-				statusCode = result.statusCode;
-				response = result.response;
-			}
-			catch (error) {
-				statusCode = error?.statusCode || 400;
-				response = error?.response || error;
-				if (!response && error && typeof error === 'object') {
-					response = error;
-				}
-			}
-			logDebugFlow(config, {
-				functionName: 'unlinkMerchant',
-				stepName: 'masterpass-sdk-response',
-				rawProviderResponse: response,
-			});
-			const mpResponse = response || {};
-			const mpResult = mpResponse?.result || mpResponse;
-			const responseCode = mpResult?.responseCode
-				|| mpResponse?.responseCode
-				|| (statusCode ? String(statusCode) : '');
-			// Exception handling
-			if ((statusCode !== 200 && statusCode !== 202) || mpResponse?.exception) {
-				const exception = mpResponse?.exception;
-				const exceptionMessage = exception?.message;
-				const exceptionCode = exception?.code;
-				if (exception && (exceptionMessage || exceptionCode)) {
-					const mappedError = mapMasterpassError(mpResponse);
-					const finalMessage = mappedError
-						? mappedError.message
-						: (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
-					const finalCode = mappedError
-						? String(mappedError.code)
-						: (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
-					return createFailedResponse('MASTERPASS', finalMessage, finalCode, {
-						httpStatus: statusCode || 400,
-						responseCode: finalCode,
-						...(config.logLevel === 'debug' && { raw: mpResponse }),
-					});
-				}
-			}
-			// Response code bazlı state machine
-			if (responseCode === '0000') {
-				// SUCCESS: Account başarıyla unlinklenmiş
-				const successResponse = createSuccessResponse('MASTERPASS', {
-					success: true,
-				}, 'Account unlinked successfully', {
-					httpStatus: statusCode || 200,
-					responseCode: responseCode,
-					...(config.logLevel === 'debug' && { raw: mpResponse }),
-				});
-				logDebugFlow(config, {
-					functionName: 'unlinkMerchant',
-					stepName: 'normalized-sdk-response',
-					normalizedSdkResponse: successResponse,
-				});
-				return successResponse;
-			}
-			else {
-				// FAILED: Diğer durumlar
-				const mappedError = mapMasterpassError(mpResponse);
-				const rawMessage = mpResult?.description || mpResponse?.description || '';
-				const errorMessage = mappedError
-					? mappedError.message
-					: (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
-				const failedResponse = createFailedResponse('MASTERPASS', errorMessage, mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'), {
-					httpStatus: statusCode || 400,
-					responseCode: mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'),
-					...(config.logLevel === 'debug' && { raw: mpResponse }),
-				});
-				logDebugFlow(config, {
-					functionName: 'unlinkMerchant',
-					stepName: 'normalized-sdk-response',
-					normalizedSdkResponse: failedResponse,
-				});
-				return failedResponse;
-			}
-		}
-		catch (error) {
-			const config = getConfig();
-			let masterpassResponse = error?.response || null;
-			if (!masterpassResponse && error && typeof error === 'object') {
-				masterpassResponse = error;
-			}
-			const mappedError = mapMasterpassError(masterpassResponse);
-			const errorMessage = mappedError
-				? mappedError.message
-				: (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
-			const errorCode = mappedError
-				? String(mappedError.code)
-				: (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
-			const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
-			const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
-				httpStatus: httpStatus,
-				responseCode: errorCode,
-				...(config.logLevel === 'debug' && { raw: masterpassResponse }),
-			});
-			logDebugFlow(config, {
-				functionName: 'unlinkMerchant',
 				stepName: 'error-handling',
 				normalizedSdkResponse: errorResponse,
 				rawProviderResponse: masterpassResponse,
@@ -9203,122 +9104,6 @@
 				stepName: 'error-handling',
 				normalizedSdkResponse: errorResponse,
 				rawProviderResponse: masterpassResponse,
-			});
-			return errorResponse;
-		}
-	}
-	/**
-	 * Internal merchant unlink implementation (Paywall backend operation).
-	 *
-	 * ⚠️ NOT: Bu işlem Masterpass SDK değil, Paywall backend operasyonudur.
-	 * Paywall backend endpoint'ine istek atar: POST /api/masterpass/merchant-unlink
-	 *
-	 * Bu işlem kesin ve terminal bir işlemdir:
-	 * - OTP logic YOK
-	 * - ActionRequired YOK
-	 * - Sadece success/failed response döner
-	 *
-	 * @internal
-	 */
-	async function merchantUnlinkInternal(params) {
-		try {
-			const config = getConfig();
-			if (!isSessionValid()) {
-				return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.ACTION_HINT_START_SESSION });
-			}
-			if (!params.accountKey || params.accountKey.trim() === '') {
-				return createFailedResponse('SDK', SDK_MESSAGES.MISSING_ACCOUNT_KEY, 'MISSING_ACCOUNT_KEY');
-			}
-			if (!params.userId || params.userId.trim() === '') {
-				return createFailedResponse('SDK', 'userId is required for merchant unlink', 'MISSING_USER_ID');
-			}
-			const masterpassToken = getMasterpassToken();
-			if (!masterpassToken || masterpassToken.trim() === '') {
-				return createFailedResponse('SDK', SDK_MESSAGES.MISSING_TOKEN, 'MISSING_TOKEN');
-			}
-			const envConfig = getResolvedEnvironmentConfig();
-			if (!envConfig) {
-				return createFailedResponse('SDK', 'Environment not resolved. Make sure Init() was called successfully.', 'ENVIRONMENT_NOT_RESOLVED');
-			}
-			// merchantId: params'den veya session'dan al
-			const merchantId = params.merchantId || getMasterpassMerchantId();
-			if (!merchantId || merchantId.trim() === '') {
-				return createFailedResponse('SDK', 'merchantId is required for merchant unlink', 'MISSING_MERCHANT_ID');
-			}
-			const requestBody = {
-				merchantId: merchantId,
-				accountKey: params.accountKey,
-				userId: params.userId,
-				token: masterpassToken,
-			};
-			const unlinkUrl = `${envConfig.paymentApiBaseUrl}/api/masterpass/merchant-unlink`;
-			logDebugFlow(config, {
-				functionName: 'merchantUnlink',
-				stepName: 'paywall-backend-request',
-				requestPayload: { ...requestBody, token: '***' },
-			});
-			let response;
-			let statusCode = 200;
-			try {
-				const httpResponse = await httpPost(unlinkUrl, requestBody);
-				statusCode = httpResponse.status || 200;
-				response = httpResponse.data || httpResponse;
-			}
-			catch (error) {
-				statusCode = error?.response?.status || error?.status || 400;
-				response = error?.response?.data || error?.response || error;
-			}
-			logDebugFlow(config, {
-				functionName: 'merchantUnlink',
-				stepName: 'paywall-backend-response',
-				rawProviderResponse: response,
-			});
-			// Response normalization
-			if (statusCode === 200 && (response?.success === true || response?.Result === true)) {
-				const successResponse = createSuccessResponse('PAYWALL', {
-					success: true,
-				}, 'Merchant unlinked successfully', {
-					httpStatus: statusCode,
-					responseCode: '0000',
-					...(config.logLevel === 'debug' && { raw: response }),
-				});
-				logDebugFlow(config, {
-					functionName: 'merchantUnlink',
-					stepName: 'normalized-sdk-response',
-					normalizedSdkResponse: successResponse,
-				});
-				return successResponse;
-			}
-			else {
-				// FAILED
-				const errorMessage = response?.message || response?.Message || 'Merchant unlink failed';
-				const errorCode = response?.errorCode || response?.ErrorCode || 'UNLINK_FAILED';
-				const failedResponse = createFailedResponse('PAYWALL', errorMessage, String(errorCode), {
-					httpStatus: statusCode || 400,
-					responseCode: String(errorCode),
-					...(config.logLevel === 'debug' && { raw: response }),
-				});
-				logDebugFlow(config, {
-					functionName: 'merchantUnlink',
-					stepName: 'normalized-sdk-response',
-					normalizedSdkResponse: failedResponse,
-				});
-				return failedResponse;
-			}
-		}
-		catch (error) {
-			const config = getConfig();
-			const errorMessage = error instanceof Error ? error.message : SDK_MESSAGES.OPERATION_FAILED;
-			const errorResponse = createFailedResponse('PAYWALL', errorMessage, 'SDK_ERROR', {
-				httpStatus: 400,
-				responseCode: 'SDK_ERROR',
-				...(config.logLevel === 'debug' && { raw: error }),
-			});
-			logDebugFlow(config, {
-				functionName: 'merchantUnlink',
-				stepName: 'error-handling',
-				normalizedSdkResponse: errorResponse,
-				rawProviderResponse: error,
 			});
 			return errorResponse;
 		}
@@ -10133,15 +9918,6 @@
 				 */
 				linkMerchant: (params) => linkMerchantInternal(params),
 				/**
-				 * Masterpass provider unlink merchant - INTERNAL IMPLEMENTATION.
-				 *
-				 * Gerçek Masterpass SDK removeCard logic'ini içerir.
-				 * External API tarafından çağrılır.
-				 *
-				 * @internal
-				 */
-				unlinkMerchant: (params) => unlinkMerchantInternal(params),
-				/**
 				 * Masterpass provider verify OTP - INTERNAL IMPLEMENTATION.
 				 *
 				 * Gerçek Masterpass SDK verifyOtp logic'ini içerir.
@@ -10177,16 +9953,6 @@
 				 * @internal
 				 */
 				deleteCard: (params) => deleteCardInternal(params),
-				/**
-				 * Masterpass provider merchant unlink - INTERNAL IMPLEMENTATION.
-				 *
-				 * ⚠️ NOT: Bu işlem Masterpass SDK değil, Paywall backend operasyonudur.
-				 * Paywall backend endpoint'ine istek atar.
-				 * External API tarafından çağrılır.
-				 *
-				 * @internal
-				 */
-				merchantUnlink: (params) => merchantUnlinkInternal(params),
 			},
 		},
 	};
@@ -10938,88 +10704,6 @@
 					return _internal.providers.masterpass.linkMerchant(params);
 				},
 				/**
-				 * Masterpass provider unlink merchant - EXTERNAL API.
-				 *
-				 * **LIFECYCLE:**
-				 * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitPaywallSdk() çağrılmış olmalı)
-				 * - Session BAŞLATILMIŞ olmalıdır (InitPaywallSdk ile includeMasterpassSession: true kullanılmış olmalı)
-				 * - Masterpass provider init edilmiş olmalıdır (PaywallJsSdk.providers.masterpass.init() çağrılmış olmalı)
-				 * - Merchant tarafından manuel olarak çağrılır
-				 *
-				 * **TOKEN:**
-				 * - Token parametre olarak VERİLMEZ
-				 * - Session state'inden otomatik alınır (MasterpassToken)
-				 *
-				 * @param params - Merchant unlink parametreleri
-				 * @returns Promise<SdkResponse> - Unlink merchant sonucu
-				 *
-				 * @example
-				 * ```typescript
-				 * const unlinkResult = await PaywallJsSdk.providers.masterpass.unlinkMerchant({
-				 *   accountKey: '905551234567',
-				 *   cardAlias: 'CARD_ALIAS_123' // optional
-				 * });
-				 *
-				 * if (unlinkResult.success) {
-				 *   console.log('Account unlinked successfully');
-				 * }
-				 * ```
-				 */
-				unlinkMerchant: async (params) => {
-					// EXTERNAL API: Sadece guard + delegation
-					// Guard: SDK core init kontrolü
-					if (!isSdkInitialized()) {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before unlinkMerchant.',
-							providerMeta: {
-								responseCode: 'SDK_NOT_INITIALIZED',
-							},
-						};
-					}
-					// Guard: Session başlatılmış mı?
-					if (!hasMasterpassSession()) {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before unlinkMerchant.',
-							providerMeta: {
-								responseCode: 'SESSION_NOT_STARTED',
-							},
-						};
-					}
-					// Guard: Session state'inde MasterpassToken var mı?
-					const masterpassToken = getMasterpassToken();
-					if (!masterpassToken || masterpassToken.trim() === '') {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-							providerMeta: {
-								responseCode: 'MISSING_TOKEN',
-							},
-						};
-					}
-					// Guard: Masterpass provider init edilmiş mi?
-					if (!isProviderInitialized('masterpass')) {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before unlinkMerchant.',
-							providerMeta: {
-								responseCode: 'PROVIDER_NOT_INITIALIZED',
-							},
-						};
-					}
-					// Delegation: Internal implementation'ı çağır
-					return _internal.providers.masterpass.unlinkMerchant(params);
-				},
-				/**
 				 * Masterpass provider verify OTP - EXTERNAL API.
 				 *
 				 * **LIFECYCLE:**
@@ -11299,89 +10983,6 @@
 					}
 					// Delegation: Internal implementation'ı çağır
 					return _internal.providers.masterpass.getCardList(params);
-				},
-				/**
-				 * Masterpass provider merchant unlink - EXTERNAL API.
-				 *
-				 * ⚠️ NOT: Bu işlem Masterpass SDK değil, Paywall backend operasyonudur.
-				 * Paywall backend endpoint'ine istek atar: POST /api/masterpass/merchant-unlink
-				 *
-				 * **LIFECYCLE:**
-				 * - SDK core init edilmiş olmalıdır (PaywallJsSdk.InitPaywallSdk() çağrılmış olmalı)
-				 * - Session BAŞLATILMIŞ olmalıdır (InitPaywallSdk ile includeMasterpassSession: true kullanılmış olmalı)
-				 * - Merchant tarafından manuel olarak çağrılır
-				 *
-				 * **TOKEN:**
-				 * - Token parametre olarak VERİLMEZ
-				 * - Session state'inden otomatik alınır (MasterpassToken)
-				 *
-				 * **MERCHANT ID:**
-				 * - merchantId parametre olarak verilebilir (opsiyonel)
-				 * - Verilmezse session state'inden otomatik alınır (MasterpassMerchantId)
-				 *
-				 * **RESPONSE:**
-				 * - Bu işlem kesin ve terminal bir işlemdir
-				 * - OTP logic YOK
-				 * - ActionRequired YOK
-				 * - Sadece success/failed response döner
-				 *
-				 * @param params - Merchant unlink parametreleri
-				 * @returns Promise<SdkResponse> - Merchant unlink sonucu
-				 *
-				 * @example
-				 * ```typescript
-				 * const unlinkResult = await PaywallJsSdk.providers.masterpass.merchantUnlink({
-				 *   accountKey: '905551234567',
-				 *   userId: 'USER_001',
-				 *   merchantId: 'M12345' // optional, session'dan alınır
-				 * });
-				 *
-				 * if (unlinkResult.success) {
-				 *   console.log('Merchant unlinked successfully');
-				 * }
-				 * ```
-				 */
-				merchantUnlink: async (params) => {
-					// EXTERNAL API: Sadece guard + delegation
-					// Guard: SDK core init kontrolü
-					if (!isSdkInitialized()) {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before merchantUnlink.',
-							providerMeta: {
-								responseCode: 'SDK_NOT_INITIALIZED',
-							},
-						};
-					}
-					// Guard: Session başlatılmış mı?
-					if (!hasMasterpassSession()) {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before merchantUnlink.',
-							providerMeta: {
-								responseCode: 'SESSION_NOT_STARTED',
-							},
-						};
-					}
-					// Guard: Session state'inde MasterpassToken var mı?
-					const masterpassToken = getMasterpassToken();
-					if (!masterpassToken || masterpassToken.trim() === '') {
-						return {
-							success: false,
-							status: 'FAILED',
-							source: 'SDK',
-							message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-							providerMeta: {
-								responseCode: 'MISSING_TOKEN',
-							},
-						};
-					}
-					// Delegation: Internal implementation'ı çağır
-					return _internal.providers.masterpass.merchantUnlink(params);
 				},
 				/**
 				 * Masterpass provider delete card - EXTERNAL API.
