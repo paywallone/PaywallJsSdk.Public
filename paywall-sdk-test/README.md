@@ -878,12 +878,6 @@ await PaywallJsSdk.payment.registerAndPurchase({
 - **Manuel kod yazmanıza GEREK YOK:** SessionId, userId, userPhone otomatik SDK'da
 - **Her işlemde session parametrelerini geçmenize GEREK YOK**
 
-**❌ KALDIRILDI:**
-- `startSession()` metodu kaldırıldı - Session oluşturma artık **merchant backend** tarafından yapılmalıdır
-- **userId** ve **userPhone** inputları kaldırıldı - Bu bilgiler backend'den otomatik gelir
-- `accessAccount()` fonksiyonu yok - Sadece `getCardList()` kullanın
-- `deleteCard()` fonksiyonu yok - `removeCard()` kullanın
-
 ---
 
 ## Kullanım Notları
@@ -1099,7 +1093,7 @@ manualCardForm = {
 4. ✅ **CardAlias Zorunlu**: RegisterAndPurchase için cardAlias zorunlu kontrolü eklendi
 5. ✅ **CurrencyId**: RegisterAndPurchase'da 949 (TRY) olarak ayarlandı
 6. ✅ **OTP Handling**: ResponseCode 5010 kontrolü ve OTP popup açılması eklendi
-7. ✅ **Fonksiyon İsimleri**: `accessAccount` → `getCardList`, `deleteCard` → `removeCard`
+7. ✅ **Fonksiyon İsimleri**: `` → `getCardList`, `deleteCard` → `removeCard`
 8. ✅ **ExpiryDate Formatı**: MMYY formatı (MM/YY değil)
 
 #### Önemli Notlar:
