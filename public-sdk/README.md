@@ -123,7 +123,7 @@ const payment = await PaywallJsSdk.payment.init({
   paymentSource: 'REGISTERED_CARD',
   paymentDetail: {
     amount: 100.00,
-    currencyId: 949,
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: 'ORDER-001',
     trackingCode: 'TRACK-001',
     successUrl: 'https://merchant.com/success',
@@ -568,7 +568,7 @@ const result = await PaywallJsSdk.providers.masterpass.resendOtp();
 | `paymentSource` | string | ✅ | Ödeme kaynağı: `'MANUAL_CARD'` veya `'REGISTERED_CARD'` |
 | `paymentDetail` | object | ✅ | Ödeme detayları |
 | `paymentDetail.amount` | number | ✅ | Ödeme tutarı |
-| `paymentDetail.currencyId` | number | ✅ | Para birimi ID (949: TRY) |
+| `paymentDetail.currencyId` | number | ✅ | Para birimi ID. Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri) |
 | `paymentDetail.merchantUniqueCode` | string | ✅ | Benzersiz sipariş kodu |
 | `paymentDetail.trackingCode` | string | ✅ | Takip kodu |
 | `paymentDetail.successUrl` | string | ✅ | Başarı URL'i |
@@ -598,7 +598,7 @@ const payment = await PaywallJsSdk.payment.init({
   paymentSource: 'MANUAL_CARD',
   paymentDetail: {
     amount: 100.00,
-    currencyId: 949,
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: 'ORDER-001',
     trackingCode: 'TRACK-001',
     successUrl: 'https://merchant.com/success',
@@ -677,7 +677,7 @@ Kart kaydı ve ödeme işlemini tek seferde yapar. Bu fonksiyon hem kart kaydı 
 | `merchantUserId` | string | ✅ | Merchant'ın kullanıcı ID'si |
 | `paymentDetail` | object | ✅ | Ödeme detayları |
 | `paymentDetail.amount` | number | ✅ | Ödeme tutarı (kuruş cinsinden) |
-| `paymentDetail.currencyId` | number | ✅ | Para birimi ID (949: TRY) |
+| `paymentDetail.currencyId` | number | ✅ | Para birimi ID. Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri) |
 | `paymentDetail.merchantUniqueCode` | string | ✅ | Benzersiz sipariş kodu |
 | `paymentDetail.trackingCode` | string | ✅ | Takip kodu |
 | `paymentDetail.successUrl` | string | ✅ | Başarı URL'i |
@@ -768,7 +768,7 @@ const result = await PaywallJsSdk.payment.registerAndPurchase({
   merchantUserId: 'USER_123',
   paymentDetail: {
     amount: 10000, // 100.00 TRY (kuruş cinsinden)
-    currencyId: 949, // TRY
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: 'ORDER-001',
     trackingCode: 'TRACK-001',
     successUrl: 'https://merchant.com/success',
@@ -1132,7 +1132,7 @@ async function completePaymentFlow() {
       paymentSource: 'REGISTERED_CARD',
       paymentDetail: {
         amount: 100.00,
-        currencyId: 949,
+        currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
         merchantUniqueCode: 'ORDER-001',
         trackingCode: 'TRACK-001',
         successUrl: 'https://merchant.com/success',
@@ -1258,7 +1258,7 @@ async function registerAndPurchaseFlow() {
       merchantUserId: 'USER_123',
       paymentDetail: {
         amount: 10000, // 100.00 TRY
-        currencyId: 949,
+        currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
         merchantUniqueCode: 'ORDER-001',
         trackingCode: 'TRACK-001',
         successUrl: 'https://merchant.com/success',

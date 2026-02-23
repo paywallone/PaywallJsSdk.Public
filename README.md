@@ -138,7 +138,7 @@ async function startPayment() {
     paymentSource: 'REGISTERED_CARD', // veya 'MANUAL_CARD'
     paymentDetail: {
       amount: 100.00,
-      currencyId: 949, // TRY
+      currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
       merchantUniqueCode: 'ORDER-' + Date.now(),
       trackingCode: 'TRACK-' + Date.now(),
       successUrl: 'https://yoursite.com/success',
@@ -338,7 +338,7 @@ async function registerAndPurchase() {
     merchantUserId: 'USER_123',
     paymentDetail: {
       amount: 10000, // 100.00 TRY (kuruş cinsinden)
-      currencyId: 949, // TRY
+      currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
       merchantUniqueCode: 'ORDER-' + Date.now(),
       trackingCode: 'TRACK-' + Date.now(),
       successUrl: 'https://yoursite.com/success',
@@ -443,7 +443,7 @@ async function completePaymentFlow() {
       paymentSource: 'REGISTERED_CARD',
       paymentDetail: {
         amount: 100.00,
-        currencyId: 949,
+        currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
         merchantUniqueCode: 'ORDER-' + Date.now(),
         trackingCode: 'TRACK-' + Date.now(),
         successUrl: 'https://yoursite.com/success',
@@ -513,7 +513,7 @@ Masterpass provider'ı initialize eder. Gerekli tüm bilgiler session state'inde
 - `paymentSource` (string): 'MANUAL_CARD' | 'REGISTERED_CARD'
 - `paymentDetail` (object): Ödeme detayları
     - `amount` (number): Ödeme tutarı
-    - `currencyId` (number): Para birimi ID (949: TRY)
+    - `currencyId` (number): Para birimi ID. Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri)
     - `merchantUniqueCode` (string): Benzersiz sipariş kodu
     - `trackingCode` (string): Takip kodu
     - `successUrl` (string): Başarı URL'i

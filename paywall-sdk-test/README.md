@@ -541,7 +541,7 @@ await PaywallJsSdk.payment.init({
   paymentSource: "MANUAL_CARD",
   paymentDetail: {
     amount: 100.00,
-    currencyId: 949, // TRY
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: "MERCHANT-1111111111111",
     trackingCode: "TRACK-1111111111111",
     successUrl: "https://merchant.com/success",
@@ -590,7 +590,7 @@ await PaywallJsSdk.payment.init({
   paymentSource: "REGISTERED_CARD",
   paymentDetail: {
     amount: 100.00,
-    currencyId: 949, // TRY
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: "MERCHANT-2222222222222",
     trackingCode: "TRACK-2222222222222",
     successUrl: "https://merchant.com/success",
@@ -637,7 +637,7 @@ await PaywallJsSdk.payment.init({
 | `paymentSource` | string | Ödeme kaynağı: "MANUAL_CARD" veya "REGISTERED_CARD" (zorunlu) |
 | `paymentDetail` | object | Ödeme detayları (zorunlu) |
 | `paymentDetail.amount` | number | Ödeme tutarı (zorunlu) |
-| `paymentDetail.currencyId` | number | Para birimi ID (949: TRY, zorunlu) |
+| `paymentDetail.currencyId` | number | Para birimi ID (zorunlu). Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri) |
 | `paymentDetail.merchantUniqueCode` | string | Benzersiz sipariş kodu (zorunlu) |
 | `paymentDetail.trackingCode` | string | Takip kodu (zorunlu) |
 | `paymentDetail.successUrl` | string | Başarı URL'i (zorunlu) |
@@ -735,7 +735,7 @@ await PaywallJsSdk.payment.registerAndPurchase({
   merchantUserId: "USER_123",
   paymentDetail: {
     amount: 10000, // 100.00 TRY (kuruş cinsinden)
-    currencyId: 949, // TRY
+    currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
     merchantUniqueCode: "ORDER-001",
     trackingCode: "TRACK-001",
     successUrl: "https://merchant.com/success",
@@ -776,7 +776,7 @@ await PaywallJsSdk.payment.registerAndPurchase({
 | `merchantUserId` | string | ✅ | Merchant'ın kullanıcı ID'si |
 | `paymentDetail` | object | ✅ | Ödeme detayları |
 | `paymentDetail.amount` | number | ✅ | Ödeme tutarı (kuruş cinsinden) |
-| `paymentDetail.currencyId` | number | ✅ | Para birimi ID (949: TRY) |
+| `paymentDetail.currencyId` | number | ✅ | Para birimi ID. Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri) |
 | `paymentDetail.merchantUniqueCode` | string | ✅ | Benzersiz sipariş kodu |
 | `paymentDetail.trackingCode` | string | ✅ | Takip kodu |
 | `paymentDetail.successUrl` | string | ✅ | Başarı URL'i |
@@ -1091,7 +1091,7 @@ manualCardForm = {
 2. ✅ **Customer Bilgileri**: Ekrana eklendi, otomatik değerler atandı (telefon hariç)
 3. ✅ **RegisterAndPurchase**: Yeni fonksiyon eklendi, checkbox ile kontrol ediliyor
 4. ✅ **CardAlias Zorunlu**: RegisterAndPurchase için cardAlias zorunlu kontrolü eklendi
-5. ✅ **CurrencyId**: RegisterAndPurchase'da 949 (TRY) olarak ayarlandı
+5. ✅ **CurrencyId**: RegisterAndPurchase'da para birimi ID'si kullanılır. Geçerli değerler: [Para Birimi](https://developer.paywall.one/sistem-verileri/para-birimleri)
 6. ✅ **OTP Handling**: ResponseCode 5010 kontrolü ve OTP popup açılması eklendi
 7. ✅ **Fonksiyon İsimleri**: `` → `getCardList`, `deleteCard` → `removeCard`
 8. ✅ **ExpiryDate Formatı**: MMYY formatı (MM/YY değil)
