@@ -28,6 +28,8 @@
    * Centralized environment configuration for PaywallJsSdk.
    * Maps environment names to Paywall API and Masterpass SDK URLs.
    */
+  /** Masterpass UAT SDK base URL (verify IsUat true iken kullanılır) */
+  const MASTERPASS_UAT_SDK_URL = 'https://mp-uat-sdk.masterpassturkiye.com';
   /**
    * Environment configuration mapping.
    * Contains both Paywall API and Masterpass SDK URLs for each environment.
@@ -42,7 +44,7 @@
       masterpassSdkUrl: 'https://mp-test-sdk.masterpassturkiye.com',
     },
     prod: {
-      paymentApiBaseUrl: 'https://payment-api.itspaywall.com',
+      paymentApiBaseUrl: 'https://payment-api.paywall.com.tr',
       masterpassSdkUrl: 'https://mp-sdk.masterpassturkiye.com',
     },
   };
@@ -5484,17 +5486,26 @@
     // 3. Token ve MerchantId'yi internal state'ten al
     const token = getMasterpassToken();
     const merchantId = getMasterpassMerchantId();
-    // 4. Environment'a göre endpoint belirle
+    // 4. Session'daki IsProd/IsTest/IsUat veya environment'a göre endpoint belirle
     const envConfig = getResolvedEnvironmentConfig();
     if (!envConfig) {
       throw new Error('Environment not resolved. Make sure Init() was called successfully.');
     }
+    const session = getMasterpassSession();
     let endpoint;
-    if (envConfig.environment === 'prod') {
+    if (session?.isProd === true) {
+      endpoint = 'https://mp-sdk.masterpassturkiye.com';
+    }
+    else if (session?.isUat === true) {
+      endpoint = MASTERPASS_UAT_SDK_URL;
+    }
+    else if (session?.isTest === true) {
+      endpoint = 'https://mp-test-sdk.masterpassturkiye.com';
+    }
+    else if (envConfig.environment === 'prod') {
       endpoint = 'https://mp-sdk.masterpassturkiye.com';
     }
     else {
-      // dev veya test
       endpoint = 'https://mp-test-sdk.masterpassturkiye.com';
     }
     // 5. Masterpass SDK API kontrolü
@@ -7703,12 +7714,22 @@
           },
         };
       }
+      // 6. Environment'a veya session'daki IsProd/IsTest/IsUat'e göre endpoint belirle
+      const session = getMasterpassSession();
       let endpoint;
-      if (envConfig.environment === 'prod') {
+      if (session?.isProd === true) {
+        endpoint = 'https://mp-sdk.masterpassturkiye.com';
+      }
+      else if (session?.isUat === true) {
+        endpoint = MASTERPASS_UAT_SDK_URL;
+      }
+      else if (session?.isTest === true) {
+        endpoint = 'https://mp-test-sdk.masterpassturkiye.com';
+      }
+      else if (envConfig.environment === 'prod') {
         endpoint = 'https://mp-sdk.masterpassturkiye.com';
       }
       else {
-        // dev veya test
         endpoint = 'https://mp-test-sdk.masterpassturkiye.com';
       }
       // 7. Masterpass SDK API kontrolü
@@ -10051,6 +10072,9 @@
             sessionExpiryDate: masterpass.SessionExpiryDate ?? '',
             masterpassToken: masterpass.MasterpassToken,
             ...(masterpass.MasterpassTerminalGroupId && { masterpassTerminalGroupId: masterpass.MasterpassTerminalGroupId }),
+            ...(typeof masterpass.IsProd === 'boolean' && { isProd: masterpass.IsProd }),
+            ...(typeof masterpass.IsTest === 'boolean' && { isTest: masterpass.IsTest }),
+            ...(typeof masterpass.IsUat === 'boolean' && { isUat: masterpass.IsUat }),
           });
           setSessionId(masterpass.SessionId);
           setMasterpassToken(masterpass.MasterpassToken);

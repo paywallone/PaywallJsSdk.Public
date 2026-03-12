@@ -211,7 +211,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
     try {
       const sdk = PaywallJsSdk as any;
-      
+
       let response;
       if (typeof sdk['InitPaywallSdk'] === 'function') {
         response = await sdk['InitPaywallSdk']({
@@ -244,12 +244,12 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
       if (response.success === true && response.data?.sdkInitialized === true) {
         this.sdkInitSuccess = true;
-        
+
         // Session bilgileri varsa otomatik doldur
         if (response.data?.hasMasterpassSession && response.data?.body?.Masterpass) {
           const masterpass = response.data.body.Masterpass;
           this.sessionId = masterpass.SessionId || masterpass.sessionId;
-          
+
           const responseUserId = masterpass.UserId || masterpass.userId;
           const responseUserPhone = masterpass.UserPhone || masterpass.userPhone;
 

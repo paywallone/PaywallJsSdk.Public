@@ -39,7 +39,7 @@ export class SdkTestComponent implements OnInit {
     merchantUniqueCode: 'MERCHANT-' + Date.now(),
     trackingCode: 'TRACK-' + Date.now(),
     successUrl: 'https://merchant.com/success',
-    failUrl: 'https://merchant.com/fail',
+    failUrl: 'https://merchant.com/success',
     clientIp: '192.168.1.1',
     installment: 1,
     channelId: undefined as number | undefined,
