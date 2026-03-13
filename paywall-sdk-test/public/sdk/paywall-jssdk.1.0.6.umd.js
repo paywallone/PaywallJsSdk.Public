@@ -282,6 +282,28 @@
     return internalState.masterpassToken;
   }
   /**
+   * OTP akış token'ını saklar (5001/5008 response'taki result.token).
+   * verifyOtp ve resendOtp bu token ile istek atar; yoksa Masterpass session token kullanılır.
+   *
+   * @param token - OTP flow token veya null (temizlemek için)
+   */
+  function setOtpFlowToken(token) {
+    if (token === null || token === undefined) {
+      delete internalState.masterpassOtpFlowToken;
+      return;
+    }
+    internalState.masterpassOtpFlowToken = token.trim() ? token.trim() : null;
+  }
+  /**
+   * OTP akış token'ını alır (addCard/merchantLink 5001/5008 sonrası set edilen).
+   *
+   * @returns string | null - Varsa OTP flow token, yoksa null
+   */
+  function getOtpFlowToken() {
+    const t = internalState.masterpassOtpFlowToken;
+    return t && t.trim() ? t : null;
+  }
+  /**
    * Session ID'yi saklar.
    * Session ID session API response'undan gelir.
    *
@@ -6344,6 +6366,8 @@
             actionType = 'BANK_OTP';
             paymentType = exports.PaymentType.Otp;
             otpToken = mpResult?.token || mpResponse?.token;
+            if (otpToken)
+              setOtpFlowToken(otpToken);
             description = SDK_MESSAGES.BANK_OTP_REQUIRED;
           }
           else if (responseCode === '5010') {
@@ -6498,6 +6522,9 @@
               fallbackActionType = 'BANK_OTP';
               fallbackPaymentType = exports.PaymentType.Otp;
               fallbackDescription = mpResult?.description || mpResponse?.description || 'Bank OTP verification required';
+              const fallbackOtpToken = mpResult?.token || mpResponse?.token;
+              if (fallbackOtpToken)
+                setOtpFlowToken(fallbackOtpToken);
             }
             else if (responseCode === '5010') {
               fallbackStatus = 'ACTION_REQUIRED';
@@ -6971,6 +6998,8 @@
         actionType = 'BANK_OTP';
         paymentType = exports.PaymentType.Otp;
         otpToken = mpResult?.token || mpResponse?.token;
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         description = SDK_MESSAGES.BANK_OTP_REQUIRED;
       }
       else if (responseCode === '5010') {
@@ -8083,6 +8112,8 @@
       }
       else if (statusMapping.status === 'ACTION_REQUIRED' && statusMapping.actionType === 'BANK_OTP') {
         const otpToken = mpResult?.token || mpResponse?.token;
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
         const description = SDK_MESSAGES.BANK_OTP_REQUIRED;
         const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
@@ -8332,6 +8363,8 @@
       else if (responseCode === '5008') {
         // ACTION_REQUIRED: Masterpass OTP REQUIRED
         const otpToken = mpResult?.token || mpResponse?.token;
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'MASTERPASS_OTP', SDK_MESSAGES.MASTERPASS_OTP_REQUIRED, {
           ...(otpToken && { token: otpToken }),
         }, {
@@ -8349,6 +8382,8 @@
       else if (responseCode === '5001') {
         // ACTION_REQUIRED: BANK OTP REQUIRED
         const otpToken = mpResult?.token || mpResponse?.token;
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'BANK_OTP', SDK_MESSAGES.BANK_OTP_REQUIRED, {
           ...(otpToken && { token: otpToken }),
         }, {
@@ -8424,8 +8459,10 @@
       if (typeof window === 'undefined') {
         return createFailedResponse('SDK', SDK_MESSAGES.BROWSER_REQUIRED, 'BROWSER_REQUIRED');
       }
-      const masterpassToken = getMasterpassToken();
-      if (!masterpassToken || masterpassToken.trim() === '') {
+      const sessionToken = getMasterpassToken();
+      const otpFlowToken = getOtpFlowToken();
+      const tokenForVerify = otpFlowToken || sessionToken;
+      if (!tokenForVerify || tokenForVerify.trim() === '') {
         return createFailedResponse('SDK', SDK_MESSAGES.MISSING_TOKEN, 'MISSING_TOKEN');
       }
       if (!isProviderInitialized('masterpass')) {
@@ -8446,7 +8483,7 @@
         return createFailedResponse('SDK', 'Masterpass SDK API mismatch: expected verifyService.verifyOtp.', 'API_MISMATCH');
       }
       const masterpassParams = {
-        token: masterpassToken,
+        token: tokenForVerify,
         otpCode: params.otpCode,
       };
       logDebugFlow(config, {
@@ -8512,13 +8549,13 @@
       if (responseCode === '0000') {
         // SUCCESS: OTP doğrulandı
         const newToken = mpResult?.token || mpResponse?.token;
-        // Token güncelle (eğer yeni token varsa)
-        if (newToken && newToken !== masterpassToken) {
+        setOtpFlowToken(null);
+        if (newToken && newToken !== sessionToken) {
           setMasterpassToken(newToken);
         }
         const successResponse = createSuccessResponse('MASTERPASS', {
           isVerified: true,
-          token: newToken || masterpassToken,
+          token: newToken || tokenForVerify,
           ...(mpResult?.terminalGroupId && { terminalGroupId: mpResult.terminalGroupId }),
           ...(mpResult?.maskedCard && { maskedCard: mpResult.maskedCard }),
           ...(mpResult?.cardUniqueNumber && { cardUniqueNumber: mpResult.cardUniqueNumber }),
@@ -8538,10 +8575,8 @@
       else if (responseCode === '5008') {
         // ACTION_REQUIRED: Masterpass OTP REQUIRED (yeni OTP gerekiyor)
         const otpToken = mpResult?.token || mpResponse?.token;
-        // Token güncelle (eğer yeni token varsa)
-        if (otpToken && otpToken !== masterpassToken) {
-          setMasterpassToken(otpToken);
-        }
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'MASTERPASS_OTP', SDK_MESSAGES.MASTERPASS_OTP_REQUIRED, {
           isVerified: false,
           ...(otpToken && { token: otpToken }),
@@ -8560,10 +8595,8 @@
       else if (responseCode === '5001') {
         // ACTION_REQUIRED: BANK OTP REQUIRED
         const otpToken = mpResult?.token || mpResponse?.token;
-        // Token güncelle (eğer yeni token varsa)
-        if (otpToken && otpToken !== masterpassToken) {
-          setMasterpassToken(otpToken);
-        }
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'BANK_OTP', SDK_MESSAGES.BANK_OTP_REQUIRED, {
           isVerified: false,
           ...(otpToken && { token: otpToken }),
@@ -8640,8 +8673,10 @@
       if (typeof window === 'undefined') {
         return createFailedResponse('SDK', SDK_MESSAGES.BROWSER_REQUIRED, 'BROWSER_REQUIRED');
       }
-      const masterpassToken = getMasterpassToken();
-      if (!masterpassToken || masterpassToken.trim() === '') {
+      const sessionToken = getMasterpassToken();
+      const otpFlowToken = getOtpFlowToken();
+      const tokenForResend = otpFlowToken || sessionToken;
+      if (!tokenForResend || tokenForResend.trim() === '') {
         return createFailedResponse('SDK', SDK_MESSAGES.MISSING_TOKEN, 'MISSING_TOKEN');
       }
       if (!isProviderInitialized('masterpass')) {
@@ -8659,7 +8694,7 @@
         return createFailedResponse('SDK', 'Masterpass SDK API mismatch: expected verifyService.resendOtp.', 'API_MISMATCH');
       }
       const masterpassParams = {
-        token: masterpassToken,
+        token: tokenForResend,
       };
       logDebugFlow(config, {
         functionName: 'resendOtp',
@@ -8725,6 +8760,8 @@
       if (responseCode === '5001' || responseCode === '5008') {
         const actionType = responseCode === '5008' ? 'MASTERPASS_OTP' : 'BANK_OTP';
         const otpToken = mpResult?.token || mpResponse?.token;
+        if (otpToken)
+          setOtpFlowToken(otpToken);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', actionType, `OTP resent. ${actionType === 'MASTERPASS_OTP' ? SDK_MESSAGES.MASTERPASS_OTP_REQUIRED : SDK_MESSAGES.BANK_OTP_REQUIRED}`, {
           ...(otpToken && { token: otpToken }),
         }, {

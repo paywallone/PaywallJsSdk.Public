@@ -13,6 +13,8 @@ export class OtpDialogComponent implements OnInit, OnDestroy {
   title = 'OTP Required';
   message = '';
   otpCode = '';
+  resendLoading = false;
+  resendMessage = ''; // success veya hata mesajı
   private subscription?: Subscription;
 
   constructor(private flowRunner: MasterpassFlowRunnerService) {}
@@ -22,6 +24,7 @@ export class OtpDialogComponent implements OnInit, OnDestroy {
       this.title = data.title;
       this.message = data.message || '';
       this.otpCode = '';
+      this.resendMessage = '';
       this.show = true;
     });
   }
@@ -44,8 +47,21 @@ export class OtpDialogComponent implements OnInit, OnDestroy {
     this.show = false;
   }
 
-  resendOtp() {
-    // Placeholder - if SDK has resend OTP function, call it here
+  async resendOtp() {
+    this.resendMessage = '';
+    this.resendLoading = true;
+    try {
+      const result = await this.flowRunner.resendOtp();
+      if (result?.success) {
+        this.resendMessage = 'OTP tekrar gönderildi. Lütfen yeni kodu girin.';
+      } else {
+        this.resendMessage = result?.message || 'OTP tekrar gönderilemedi.';
+      }
+    } catch {
+      this.resendMessage = 'OTP tekrar gönderilirken hata oluştu.';
+    } finally {
+      this.resendLoading = false;
+    }
   }
 
   onBackdropClick(event: MouseEvent) {

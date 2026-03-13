@@ -88,6 +88,41 @@ export class MasterpassFlowRunnerService {
   }
 
   /**
+   * Resend OTP via SDK (OTP dialog'dan çağrılır)
+   */
+  async resendOtp(): Promise<SdkResponse<unknown>> {
+    const masterpass = PaywallJsSdk?.providers?.masterpass as { resendOtp?: () => Promise<SdkResponse<unknown>> } | undefined;
+    if (!masterpass || typeof masterpass['resendOtp'] !== 'function') {
+      return {
+        success: false,
+        status: 'FAILED',
+        source: 'SDK',
+        message: 'SDK resendOtp metodu bulunamadı.',
+        errorCode: 'RESEND_OTP_UNAVAILABLE'
+      } as SdkResponse<unknown>;
+    }
+    try {
+      const result = await masterpass['resendOtp']();
+      this.logService.addStep({
+        actionName: 'resendOtp',
+        response: this.logService.maskSensitiveData(result),
+        normalizedResult: this.logService.normalizeResponse(result)
+      });
+      return result as SdkResponse<unknown>;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Resend OTP failed';
+      this.logService.addStep({ actionName: 'resendOtp', error: message });
+      return {
+        success: false,
+        status: 'FAILED',
+        source: 'SDK',
+        message,
+        errorCode: 'RESEND_OTP_ERROR'
+      } as SdkResponse<unknown>;
+    }
+  }
+
+  /**
    * Generic wrapper for SDK calls with action handling
    */
   async callWithHandling<T>(
