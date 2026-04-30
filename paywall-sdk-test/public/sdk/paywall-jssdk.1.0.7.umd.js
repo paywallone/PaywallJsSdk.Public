@@ -5734,6 +5734,11 @@
      * OTP ödeme.
      */
     PaymentType[PaymentType["Otp"] = 3] = "Otp";
+    /**
+     * Bilinmiyor — Masterpass çağrısı tamamlanmadan hata aldığımız (network/exception)
+     * durumlarda kullanılır. Backend bu durumda ödemeyi "tip bilinmiyor" olarak işler.
+     */
+    PaymentType[PaymentType["Unknown"] = 4] = "Unknown";
   })(exports.PaymentType || (exports.PaymentType = {}));
   function getPlainCardForMasterpass(cardData) {
     const cardNumberPlain = (cardData.cardNumber ?? '').toString().replace(/\s/g, '');
@@ -6612,6 +6617,32 @@
             errorMessage = SDK_MESSAGES.PAYMENT_INIT_FAILED;
             errorCode = 'MASTERPASS_ERROR';
           }
+          // Paywall backend'e FAILED bildirimi gönder (otomatik, fire-and-forget)
+          // Bu sayede ödeme "Created" durumunda kalmaz, "Unsuccessful" olarak işaretlenir
+          // PaymentType: Masterpass çağrısı tamamlanmadığı için tip kesin bilinemez → Unknown (4)
+          // MasterpassOrderId: Mümkünse exception.retrievalReferenceNumber'dan al, yoksa '-' fallback
+          try {
+            const failureMasterpassOrderId = masterpassResponse?.exception?.retrievalReferenceNumber
+              || masterpassResponse?.result?.retrievalReferenceNumber
+              || masterpassResponse?.retrievalReferenceNumber
+              || '-';
+            await markAsStarted({
+              ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+              paymentType: exports.PaymentType.Unknown,
+              paymentStatus: 'FAILED',
+              masterpassOrderId: failureMasterpassOrderId,
+              ...(masterpassResponse && {
+                masterpassResponse: {
+                  statusCode: errorStatusCode || masterpassResponse?.statusCode || 0,
+                  response: masterpassResponse,
+                },
+              }),
+              responseCode: errorCode,
+            });
+          }
+          catch (markError) {
+            // markAsStarted hatası ödeme akışını durdurmaz
+          }
           return createFailedResponse('MASTERPASS', errorMessage, errorCode, {
             httpStatus: errorStatusCode || masterpassResponse?.statusCode || 0,
             responseCode: errorCode,
@@ -6621,6 +6652,21 @@
       }
       else {
         const errorMsg = SDK_MESSAGES.MISSING_MASTERPASS_REQUEST_BODY;
+        // Paywall init başarılı ama MasterpassRequestBody boş — Masterpass akışı hiç
+        // başlamadı. Paywall tarafında kayıt "Created" durumunda kalmasın diye
+        // FAILED olarak işaretliyoruz.
+        try {
+          await markAsStarted({
+            ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            paymentType: exports.PaymentType.Unknown,
+            paymentStatus: 'FAILED',
+            masterpassOrderId: '-',
+            responseCode: 'MISSING_MASTERPASS_REQUEST_BODY',
+          });
+        }
+        catch (markError) {
+          // markAsStarted hatası ödeme akışını durdurmaz
+        }
         return createFailedResponse('PAYWALL', errorMsg, 'MISSING_MASTERPASS_REQUEST_BODY');
       }
       // Merchant sadece normalize edilmiş SDK response'unu görür
@@ -6694,6 +6740,21 @@
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Paywall backend'e FAILED bildirimi gönder (otomatik, fire-and-forget)
+      // En dış catch — beklenmeyen SDK hataları için de ödeme "Created" durumunda kalmasın
+      // PaymentType: Masterpass çağrısı tamamlanmadığı için tip bilinemez → Unknown (4)
+      // MasterpassOrderId: Bu noktada response yok, '-' fallback kullanılır
+      try {
+        await markAsStarted({
+          paymentType: exports.PaymentType.Unknown,
+          paymentStatus: 'FAILED',
+          masterpassOrderId: '-',
+          responseCode: 'SDK_ERROR',
+        });
+      }
+      catch (markError) {
+        // markAsStarted hatası ödeme akışını durdurmaz
+      }
       return createFailedResponse('MASTERPASS', getMessage('PAYMENT_INIT_FAILED_WITH_ERROR', errorMessage), 'SDK_ERROR', {
         responseCode: 'SDK_ERROR',
         raw: error,
@@ -7456,6 +7517,12 @@
         // Hata kontrolü - merkezi error mapping
         const mappedError = mapMasterpassError(masterpassResponse.response);
         if (mappedError) {
+          httpPost(`${config.baseUrl}/checkout/masterpass/payment/failed`, {
+            paymentId,
+            status: 'FAILED',
+            errorCode: String(mappedError.code),
+            errorMessage: mappedError.message,
+          }).catch(() => { });
           const errorResult = {
             success: false,
             flowType: flowType === exports.PaymentFlowType.THREE_D_SECURE ? 'THREE_D_SECURE' : 'NON_SECURE',
@@ -7566,7 +7633,8 @@
       catch (error) {
         // Network hatası veya Masterpass SDK hatası
         const errorResponse = error;
-        const mappedError = mapMasterpassError(errorResponse?.response || errorResponse);
+        const rawResponse = errorResponse?.response || errorResponse;
+        const mappedError = mapMasterpassError(rawResponse);
         // FlowType belirleme
         const flowType = params.threeDSecure
           ? exports.PaymentFlowType.THREE_D_SECURE
@@ -7578,11 +7646,23 @@
         const checkoutId = params.checkoutId || initResponse?.checkoutId;
         const uniqueCode = params.uniqueCode || initResponse?.uniqueCode;
         const merchantUniqueCode = params.merchantUniqueCode || initResponse?.merchantUniqueCode;
+        const failedErrorCode = mappedError
+          ? String(mappedError.code)
+          : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
+        const failedErrorMessage = mappedError
+          ? mappedError.message
+          : (rawResponse?.exception?.message || errorMessageText);
+        httpPost(`${config.baseUrl}/checkout/masterpass/payment/failed`, {
+          paymentId,
+          status: 'FAILED',
+          errorCode: String(failedErrorCode),
+          errorMessage: String(failedErrorMessage),
+        }).catch(() => { });
         const errorResult = {
           success: false,
           flowType: flowType === exports.PaymentFlowType.THREE_D_SECURE ? 'THREE_D_SECURE' : 'NON_SECURE',
-          statusCode: 0,
-          responseCode: 'SDK_ERROR',
+          statusCode: errorResponse?.statusCode || 0,
+          responseCode: String(failedErrorCode),
           ...(paymentId && { paymentId }),
           ...(checkoutId && { checkoutId }),
           ...(uniqueCode && { uniqueCode }),
@@ -7590,8 +7670,8 @@
         };
         return {
           success: false,
-          errorCode: 'SDK_ERROR',
-          errorMessage: 'masterpass.errors.unknown',
+          errorCode: String(failedErrorCode),
+          errorMessage: String(failedErrorMessage),
           data: errorResult,
         };
       }
@@ -9265,7 +9345,7 @@
       const backendUrl = config.backendEndpointUrl || 'http://localhost:5000';
       const pushUrl = `${backendUrl}/payment/push-transaction`;
       if (!backendUrl) ;
-      const status = unified.flowType === 'NON_SECURE' ? 'SUCCESS' : 'STARTED';
+      const status = unified.status ?? (unified.flowType === 'NON_SECURE' ? 'SUCCESS' : 'STARTED');
       const payload = {
         paymentReference: params.paymentReference,
         merchantId: params.merchantId,
@@ -9280,6 +9360,7 @@
         responseCode: unified.responseCode,
         redirectUrl: unified.url3d ?? null,
         status,
+        ...(unified.errorMessage && { errorMessage: unified.errorMessage }),
       };
       const response = await fetch(pushUrl, {
         method: 'POST',
@@ -9411,6 +9492,22 @@
       const secure3DModel = params.masterpassOptions?.threeDSecure === true ? '3D' : 'NON_SECURE';
       masterpassParams.secure3DModel = secure3DModel;
       let masterpassResponse;
+      const notifyFailure = (responseCode, errorMessage) => pushTransactionToBackend({
+        flowType: 'NON_SECURE',
+        responseCode,
+        masterpassToken: '',
+        maskedPan: params.maskedPan,
+        bin: params.bin,
+        last4: params.last4,
+        expiryDate: params.expiryDate ?? '',
+        status: 'FAILED',
+        errorMessage,
+      }, {
+        paymentReference: params.paymentReference,
+        merchantId: params.merchantId || '',
+        amount: params.amount,
+        currency: params.currency,
+      }).catch(() => { });
       try {
         if (secure3DModel === '3D') {
           masterpassResponse = await masterpassPayment(masterpassParams);
@@ -9420,6 +9517,7 @@
         }
         const mappedError = mapMasterpassError(masterpassResponse.response);
         if (mappedError) {
+          await notifyFailure(String(mappedError.code), mappedError.message);
           return {
             status: 'FAILED',
             flowType: 'NON_SECURE',
@@ -9430,26 +9528,33 @@
             last4: params.last4,
             expiryDate: params.expiryDate,
             responseCode: String(mappedError.code),
+            errorMessage: mappedError.message,
           };
         }
       }
       catch (error) {
         const errorResponse = error;
-        const mappedError = mapMasterpassError(errorResponse?.response || errorResponse);
-        if (mappedError) {
-          return {
-            status: 'FAILED',
-            flowType: 'NON_SECURE',
-            paywallUniqueCode: '',
-            masterpassToken: '',
-            maskedPan: params.maskedPan,
-            bin: params.bin,
-            last4: params.last4,
-            expiryDate: params.expiryDate,
-            responseCode: String(mappedError.code),
-          };
-        }
-        throw new Error(`Masterpass payment failed: ${error instanceof Error ? error.message : String(error)}`);
+        const rawResponse = errorResponse?.response || errorResponse;
+        const mappedError = mapMasterpassError(rawResponse);
+        const errorCode = mappedError
+          ? String(mappedError.code)
+          : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
+        const errorMessage = mappedError
+          ? mappedError.message
+          : (rawResponse?.exception?.message || (error instanceof Error ? error.message : String(error)));
+        await notifyFailure(String(errorCode), String(errorMessage));
+        return {
+          status: 'FAILED',
+          flowType: 'NON_SECURE',
+          paywallUniqueCode: '',
+          masterpassToken: '',
+          maskedPan: params.maskedPan,
+          bin: params.bin,
+          last4: params.last4,
+          expiryDate: params.expiryDate,
+          responseCode: String(errorCode),
+          errorMessage: String(errorMessage),
+        };
       }
       const unified = mapMasterpassSdkResponseToUnified(masterpassResponse, {
         maskedPan: params.maskedPan,

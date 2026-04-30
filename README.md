@@ -16,7 +16,7 @@ Paywall ödeme altyapısı için JavaScript SDK. Tarayıcıda direkt kullanım i
 
 SDK dosyasını `public-sdk/` klasöründen indirin:
 ```
-public-sdk/paywall-jssdk.1.0.6.umd.js
+public-sdk/paywall-jssdk.1.0.7.umd.js
 ```
 
 ### 2. HTML Sayfanıza Ekleyin
@@ -28,7 +28,7 @@ public-sdk/paywall-jssdk.1.0.6.umd.js
   <title>Paywall SDK Example</title>
 </head>
 <body>
-  <script src="paywall-jssdk.1.0.6.umd.js"></script>
+  <script src="paywall-jssdk.1.0.7.umd.js"></script>
   <script>
     if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
       window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
