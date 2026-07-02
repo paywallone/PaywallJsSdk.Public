@@ -1173,7 +1173,6 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   async payWithRegisteredCard() {
     const flowState = this.flowRunner.getFlowState();
     const sessionId = this.sessionId ?? flowState.sessionId;
-
     // UI Guard 1: Provider and Session check
     if (!this.isProviderAndSessionReady()) {
       this.registeredPaymentError = 'Provider and Session must be ready first';

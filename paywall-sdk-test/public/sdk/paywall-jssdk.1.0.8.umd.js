@@ -6082,7 +6082,12 @@
         return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
       }
     }
-    if (!params.sessionId || params.sessionId.trim() === '') {
+    // Session ID SDK tarafından yönetilir: dahili (verify'dan gelen, gerektiğinde
+    // yenilenen) session önceliklidir; yoksa merchant'ın verdiği değere düşülür.
+    let resolvedSessionId = (session.sessionId && session.sessionId.trim() !== '')
+      ? session.sessionId
+      : (params.sessionId ?? '');
+    if (!resolvedSessionId || resolvedSessionId.trim() === '') {
       return createFailedResponse('SDK', SDK_MESSAGES.MISSING_SESSION_ID, 'MISSING_SESSION_ID');
     }
     const config = getConfig();
@@ -6181,8 +6186,8 @@
       }
       const isSavedCard = params.paymentSource === exports.PaymentSource.REGISTERED_CARD;
       const requestBody = {
-        SessionId: params.sessionId,
-        Force3D: params.force3D ?? false,
+        SessionId: resolvedSessionId,
+        Force3D: params.force3D ?? session.force3D ?? false,
         PaymentDetail: {
           Amount: params.paymentDetail.amount,
           CurrencyId: params.paymentDetail.currencyId,
@@ -6234,6 +6239,8 @@
             ...currentSession,
             sessionId: body.Session.SessionId,
           });
+          // Yenilenen session ID'yi bu isteğin request/sonuç akışında da kullan
+          resolvedSessionId = body.Session.SessionId;
         }
       }
       const paywallMetadata = body.Masterpass?.Paywall;
@@ -6561,7 +6568,7 @@
               raw: errorResponse,
             };
             const fallbackResult = {
-              sessionId: params.sessionId,
+              sessionId: resolvedSessionId,
               status: fallbackStatus,
               ...(fallbackActionType && { actionType: fallbackActionType }),
               message: fallbackDescription,
@@ -6699,7 +6706,7 @@
       // Sadece gerekli alanlar merchant root response'unda görünür
       // Gereksiz debug alanları providerMeta.raw altında saklanır
       const merchantResult = {
-        sessionId: params.sessionId,
+        sessionId: resolvedSessionId,
         status: paymentStatus || 'FAILED',
         ...(actionType && { actionType }),
         ...(description && { message: description }),
@@ -6845,7 +6852,12 @@
         return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
       }
     }
-    if (!params.sessionId || params.sessionId.trim() === '') {
+    // Session ID SDK tarafından yönetilir: dahili (verify'dan gelen, gerektiğinde
+    // yenilenen) session önceliklidir; yoksa merchant'ın verdiği değere düşülür.
+    let resolvedSessionId = (session.sessionId && session.sessionId.trim() !== '')
+      ? session.sessionId
+      : (params.sessionId ?? '');
+    if (!resolvedSessionId || resolvedSessionId.trim() === '') {
       return createFailedResponse('SDK', SDK_MESSAGES.MISSING_SESSION_ID, 'MISSING_SESSION_ID');
     }
     const config = getConfig();
@@ -6892,8 +6904,8 @@
       }
       // Paywall init request body oluştur
       const requestBody = {
-        SessionId: params.sessionId,
-        Force3D: params.force3D ?? false,
+        SessionId: resolvedSessionId,
+        Force3D: params.force3D ?? session.force3D ?? false,
         PaymentDetail: {
           Amount: params.paymentDetail.amount,
           CurrencyId: params.paymentDetail.currencyId,
@@ -6947,6 +6959,8 @@
             ...currentSession,
             sessionId: body.Session.SessionId,
           });
+          // Yenilenen session ID'yi bu isteğin request/sonuç akışında da kullan
+          resolvedSessionId = body.Session.SessionId;
         }
       }
       const paywallMetadata = body.Masterpass?.Paywall;
@@ -7135,7 +7149,7 @@
       };
       // Result oluştur
       const result = {
-        sessionId: params.sessionId,
+        sessionId: resolvedSessionId,
         status: paymentStatus,
         ...(actionType && { actionType }),
         ...(description && { message: description }),
@@ -10214,6 +10228,7 @@
             sessionExpiryDate: masterpass.SessionExpiryDate ?? '',
             masterpassToken: masterpass.MasterpassToken,
             ...(masterpass.MasterpassTerminalGroupId && { masterpassTerminalGroupId: masterpass.MasterpassTerminalGroupId }),
+            ...(typeof masterpass.Force3D === 'boolean' && { force3D: masterpass.Force3D }),
             ...(typeof masterpass.IsProd === 'boolean' && { isProd: masterpass.IsProd }),
             ...(typeof masterpass.IsTest === 'boolean' && { isTest: masterpass.IsTest }),
             ...(typeof masterpass.IsUat === 'boolean' && { isUat: masterpass.IsUat }),
@@ -10242,6 +10257,7 @@
               ...(typeof masterpass.IsProd === 'boolean' && { IsProd: masterpass.IsProd }),
               ...(typeof masterpass.IsTest === 'boolean' && { IsTest: masterpass.IsTest }),
               ...(typeof masterpass.IsUat === 'boolean' && { IsUat: masterpass.IsUat }),
+              ...(typeof masterpass.Force3D === 'boolean' && { Force3D: masterpass.Force3D }),
             },
           }),
         };
@@ -10473,7 +10489,7 @@
         assertSdkInitialized();
         // Kayıtlı kart için payment.init'i PaymentSource.REGISTERED_CARD ile çağır
         const response = await initPayment({
-          sessionId: params.sessionId,
+          ...(params.sessionId && { sessionId: params.sessionId }),
           paymentSource: exports.PaymentSource.REGISTERED_CARD,
           force3D: params.force3D ?? false,
           paymentDetail: params.paymentDetail,
