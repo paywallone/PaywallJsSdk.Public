@@ -55,7 +55,7 @@ SDK, PCI-DSS (Payment Card Industry Data Security Standard) uyumludur ve aşağ�
 SDK'yı CDN üzerinden yüklemek için HTML dosyanıza aşağıdaki script tag'ini ekleyin:
 
 ```html
-<script src="https://cdn.example.com/paywall-jssdk.1.0.8.umd.js"></script>
+<script src="https://cdn.example.com/paywall-jssdk.1.0.9.umd.js"></script>
 <script>
    if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
       window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
@@ -68,7 +68,7 @@ SDK'yı CDN üzerinden yüklemek için HTML dosyanıza aşağıdaki script tag'i
 SDK dosyasını projenize indirip local olarak kullanabilirsiniz:
 
 ```html
-<script src="/path/to/paywall-jssdk.1.0.8.umd.js"></script>
+<script src="/path/to/paywall-jssdk.1.0.9.umd.js"></script>
 <script>
    if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
       window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;

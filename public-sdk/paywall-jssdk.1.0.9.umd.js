@@ -5359,11 +5359,11 @@
         },
         "5008": {
             code: 5008,
-            message: SDK_MESSAGES.BANK_OTP_REQUIRED
+            message: SDK_MESSAGES.MASTERPASS_OTP_REQUIRED
         },
         "5001": {
             code: 5001,
-            message: SDK_MESSAGES.MASTERPASS_OTP_REQUIRED
+            message: SDK_MESSAGES.BANK_OTP_REQUIRED
         },
         "5010": {
             code: 5010,
@@ -5671,7 +5671,7 @@
             return null;
         }
         const codeString = String(code);
-        if (codeString === '5001' || codeString === '5010') {
+        if (codeString === '5001' || codeString === '5008' || codeString === '5010') {
             return null;
         }
         if (MASTERPASS_ERROR_MAP[codeString]) {
@@ -5679,7 +5679,7 @@
         }
         if (response?.exception?.code) {
             const exceptionCodeString = String(response.exception.code);
-            if (exceptionCodeString === '5001' || exceptionCodeString === '5010') {
+            if (exceptionCodeString === '5001' || exceptionCodeString === '5008' || exceptionCodeString === '5010') {
                 return null;
             }
             if (MASTERPASS_ERROR_MAP[exceptionCodeString]) {
@@ -5689,7 +5689,7 @@
         if (response?.exception?.message) {
             const exceptionMsg = String(response.exception.message).toUpperCase();
             for (const [key, value] of Object.entries(MASTERPASS_ERROR_MAP)) {
-                if (key === '5001' || key === '5010') {
+                if (key === '5001' || key === '5008' || key === '5010') {
                     continue;
                 }
                 if (exceptionMsg.includes(key)) {
@@ -6239,7 +6239,7 @@
                         ...currentSession,
                         sessionId: body.Session.SessionId,
                     });
-                    // Yenilenen session ID'yi bu isteğin request/sonuç akışında da kullan
+                    setSessionId(body.Session.SessionId);
                     resolvedSessionId = body.Session.SessionId;
                 }
             }
@@ -6382,6 +6382,15 @@
                             setOtpFlowToken(otpToken);
                         description = SDK_MESSAGES.BANK_OTP_REQUIRED;
                     }
+                    else if (responseCode === '5008') {
+                        paymentStatus = 'ACTION_REQUIRED';
+                        actionType = 'MASTERPASS_OTP';
+                        paymentType = exports.PaymentType.Otp;
+                        otpToken = mpResult?.token || mpResponse?.token;
+                        if (otpToken)
+                            setOtpFlowToken(otpToken);
+                        description = SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
+                    }
                     else if (responseCode === '5010') {
                         // responseCode 5010 → 3D Secure doğrulama gerekiyor
                         // token varsa, bu token 3D formunda kullanılır (url3d içinde token var)
@@ -6451,7 +6460,7 @@
                             hasOtpToken: !!otpToken,
                             hasMasterpassOrderId: !!masterpassOrderId,
                             description: description,
-                            ...(actionType === 'BANK_OTP' && {
+                            ...((actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP') && {
                                 note: 'OTP_REQUIRED - handled by merchant backend. SDK does NOT verify OTP.',
                             }),
                         },
@@ -6538,6 +6547,15 @@
                             if (fallbackOtpToken)
                                 setOtpFlowToken(fallbackOtpToken);
                         }
+                        else if (responseCode === '5008') {
+                            fallbackStatus = 'ACTION_REQUIRED';
+                            fallbackActionType = 'MASTERPASS_OTP';
+                            fallbackPaymentType = exports.PaymentType.Otp;
+                            fallbackDescription = mpResult?.description || mpResponse?.description || SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
+                            const fallbackOtpToken = mpResult?.token || mpResponse?.token;
+                            if (fallbackOtpToken)
+                                setOtpFlowToken(fallbackOtpToken);
+                        }
                         else if (responseCode === '5010') {
                             fallbackStatus = 'ACTION_REQUIRED';
                             fallbackActionType = '3D';
@@ -6575,6 +6593,8 @@
                             description: fallbackDescription,
                             ...(fallbackActionType === 'BANK_OTP' && mpResult?.token && { token: mpResult.token }),
                             ...(fallbackActionType === 'BANK_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
+                            ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.token && { token: mpResult.token }),
+                            ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
                             ...(fallbackActionType === '3D' && (mpResult?.url3d || mpResponse?.url3d) && { redirectUrl: mpResult?.url3d || mpResponse?.url3d }),
                             ...(fallbackActionType === '3D' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
                             ...(params.paymentDetail.successUrl && { successUrl: params.paymentDetail.successUrl }),
@@ -6728,12 +6748,14 @@
                 functionName: 'initPayment',
                 stepName: 'merchant-response',
                 normalizedSdkResponse: merchantResult,
-                ...(merchantResult.actionType === 'BANK_OTP' && {
-                    metadata: {
-                        note: 'OTP_REQUIRED - handled by merchant backend. SDK does NOT verify OTP.',
-                        merchantResponsibility: 'Merchant must: 1) Show OTP UI, 2) Send OTP to merchant backend, 3) Merchant backend verifies OTP with Paywall backend',
-                    },
-                }),
+                ...(merchantResult.actionType === 'BANK_OTP' || merchantResult.actionType === 'MASTERPASS_OTP'
+                    ? {
+                        metadata: {
+                            note: 'OTP_REQUIRED - handled by merchant backend. SDK does NOT verify OTP.',
+                            merchantResponsibility: 'Merchant must: 1) Show OTP UI, 2) Send OTP to merchant backend, 3) Merchant backend verifies OTP with Paywall backend',
+                        },
+                    }
+                    : {}),
             });
             if (paymentStatus === 'SUCCESS') {
                 return createSuccessResponse('PAYWALL', merchantResult, description || SDK_MESSAGES.PAYMENT_INIT_SUCCESS, providerMeta);
@@ -6959,7 +6981,7 @@
                         ...currentSession,
                         sessionId: body.Session.SessionId,
                     });
-                    // Yenilenen session ID'yi bu isteğin request/sonuç akışında da kullan
+                    setSessionId(body.Session.SessionId);
                     resolvedSessionId = body.Session.SessionId;
                 }
             }
@@ -7076,6 +7098,15 @@
                 if (otpToken)
                     setOtpFlowToken(otpToken);
                 description = SDK_MESSAGES.BANK_OTP_REQUIRED;
+            }
+            else if (responseCode === '5008') {
+                paymentStatus = 'ACTION_REQUIRED';
+                actionType = 'MASTERPASS_OTP';
+                paymentType = exports.PaymentType.Otp;
+                otpToken = mpResult?.token || mpResponse?.token;
+                if (otpToken)
+                    setOtpFlowToken(otpToken);
+                description = SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
             }
             else if (responseCode === '5010') {
                 // responseCode 5010 → 3D Secure doğrulama gerekiyor
@@ -8212,6 +8243,29 @@
                 const description = SDK_MESSAGES.BANK_OTP_REQUIRED;
                 const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
                 const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'BANK_OTP', description, {
+                    ...(sessionId && { sessionId }),
+                    token: otpToken,
+                    ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+                }, {
+                    httpStatus: statusCode || 202,
+                    responseCode: responseCode,
+                    ...(config.logLevel === 'debug' && { raw: mpResponse }),
+                });
+                logDebugFlow(config, {
+                    functionName: 'addCard',
+                    stepName: 'normalized-sdk-response',
+                    normalizedSdkResponse: actionRequiredResponse,
+                });
+                return actionRequiredResponse;
+            }
+            else if (statusMapping.status === 'ACTION_REQUIRED' && statusMapping.actionType === 'MASTERPASS_OTP') {
+                const otpToken = mpResult?.token || mpResponse?.token;
+                if (otpToken)
+                    setOtpFlowToken(otpToken);
+                const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
+                const description = SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
+                const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
+                const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'MASTERPASS_OTP', description, {
                     ...(sessionId && { sessionId }),
                     token: otpToken,
                     ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
@@ -10720,9 +10774,12 @@
                  *   console.log(addCardResult.data?.maskedCard);
                  * } else if (addCardResult.status === 'ACTION_REQUIRED') {
                  *   if (addCardResult.actionType === 'BANK_OTP') {
-                 *     // OTP gerekiyor - merchant backend'e gönder
-                 *     console.log('OTP required:', addCardResult.data?.token);
-                 *   } else if (addCardResult.actionType === 'THREE_D') {
+                 *     // Bank OTP gerekiyor - merchant backend'e gönder
+                 *     console.log('Bank OTP required:', addCardResult.data?.token);
+                 *   } else if (addCardResult.actionType === 'MASTERPASS_OTP') {
+                 *     // Masterpass OTP gerekiyor - merchant backend'e gönder
+                 *     console.log('Masterpass OTP required:', addCardResult.data?.token);
+                 *   } else if (addCardResult.actionType === '3D') {
                  *     // 3D gerekiyor - merchant UI redirect yapmalı
                  *     console.log('3D required:', addCardResult.data?.token);
                  *   }
