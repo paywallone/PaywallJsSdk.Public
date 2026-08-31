@@ -103,6 +103,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   } | null = null;
   selectedCardIndex: number = -1; // For dropdown binding - use index instead of JSON
   paymentAmount = 100;
+  successUrl = 'https://merchant.com/success';
+  failUrl = 'https://merchant.com/fail';
   force3D = false;
 
   // Product List
@@ -1236,8 +1238,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           currencyId: 1,
           merchantUniqueCode: 'MERCHANT-' + Date.now(),
           trackingCode: this.trackingCode,
-          successUrl: 'https://merchant.com/success',
-          failUrl: 'https://merchant.com/fail',
+          successUrl: this.successUrl,
+          failUrl: this.failUrl,
           clientIp: '192.168.1.1',
           installment: 1
         },
@@ -1411,8 +1413,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           currencyId: 1,
           merchantUniqueCode: 'MERCHANT-' + Date.now(),
           trackingCode: this.trackingCode,
-          successUrl: 'https://merchant.com/success',
-          failUrl: 'https://merchant.com/fail',
+          successUrl: this.successUrl,
+          failUrl: this.failUrl,
           clientIp: '192.168.1.1',
           installment: 1
         },
@@ -1544,8 +1546,8 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           currencyId: 1,
           merchantUniqueCode: 'MERCHANT-' + Date.now(),
           trackingCode: this.trackingCode,
-          successUrl: 'https://merchant.com/success',
-          failUrl: 'https://merchant.com/fail',
+          successUrl: this.successUrl,
+          failUrl: this.failUrl,
           clientIp: '192.168.1.1',
           installment: 1
         },

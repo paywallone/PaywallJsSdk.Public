@@ -259,6 +259,24 @@
       </small>
     </div>
 
+    <!-- Redirect URLs -->
+    <div class="redirect-urls-section" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #f8f9fa;">
+      <h3>Redirect URLs</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Success URL:</label>
+          <input type="text" [(ngModel)]="successUrl" placeholder="https://merchant.com/success" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Fail URL:</label>
+          <input type="text" [(ngModel)]="failUrl" placeholder="https://merchant.com/fail" class="form-control" />
+        </div>
+      </div>
+      <small style="color: #666; font-size: 12px; display: block; margin-top: 10px;">
+        Sent as paymentDetail.successUrl / failUrl with every payment request. Defaults are pre-filled; change if needed.
+      </small>
+    </div>
+
     <!-- Product List -->
     <div class="product-section" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
       <h3>Product List</h3>
