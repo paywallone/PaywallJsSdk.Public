@@ -92,6 +92,56 @@
     }
 
     /**
+     * Session expiry date helpers.
+     *
+     * Paywall/Masterpass SessionExpiryDate genelde timezone'suz İstanbul saati gelir:
+     *   "2026-08-31T13:54:28"
+     * Bazen offset'li de gelebilir:
+     *   "2026-09-01T13:39:27.9870283+03:00"
+     *
+     * Karşılaştırma her zaman UTC epoch (ms) üzerinden yapılır.
+     * Date.now() zaten UTC epoch'tur; API tarihi timezone'suzsa İstanbul (UTC+3) kabul edilir.
+     */
+    /** Turkey / Istanbul fixed offset (UTC+3, DST yok). */
+    const ISTANBUL_OFFSET = '+03:00';
+    /**
+     * Date-time string'inde açık timezone (Z veya ±HH:MM / ±HHMM) var mı?
+     */
+    function hasExplicitTimezone(dateTime) {
+        return /([zZ]|[+-]\d{2}:\d{2}|[+-]\d{4})$/.test(dateTime);
+    }
+    /**
+     * Session / token expiry string'ini UTC epoch (ms) olarak parse eder.
+     * Timezone yoksa İstanbul (UTC+3) kabul edilir.
+     *
+     * @returns number - UTC timestamp ms, parse edilemezse NaN
+     */
+    function parseExpiryToUtcMs(dateTime) {
+        const trimmed = (dateTime ?? '').trim();
+        if (!trimmed) {
+            return NaN;
+        }
+        // Fractional seconds > 3 digit bazı engine'lerde Invalid Date verebilir → 3'e kısalt
+        // örn: 2026-09-01T13:39:27.9870283+03:00
+        const normalized = trimmed.replace(/(\.\d{3})\d+(?=(Z|[+-]\d{2}:?\d{2})?$)/i, '$1');
+        const withTimezone = hasExplicitTimezone(normalized)
+            ? normalized
+            : `${normalized}${ISTANBUL_OFFSET}`;
+        return new Date(withTimezone).getTime();
+    }
+    /**
+     * Expiry geçmiş mi? (UTC epoch karşılaştırması)
+     * Parse edilemeyen tarih → expired kabul edilir.
+     */
+    function isExpiryPassedUtc(dateTime) {
+        const expiryUtcMs = parseExpiryToUtcMs(dateTime);
+        if (Number.isNaN(expiryUtcMs)) {
+            return true;
+        }
+        return Date.now() >= expiryUtcMs;
+    }
+
+    /**
      * Configuration
      *
      * SDK için global konfigürasyon yönetimi.
@@ -207,6 +257,7 @@
     }
     /**
      * Masterpass session'ın süresi dolmuş mu kontrol eder.
+     * SessionExpiryDate API'den timezone'suz İstanbul saati gelebilir; UTC epoch ile karşılaştırılır.
      * @returns true - session yoksa veya süresi dolmuşsa
      */
     function isMasterpassSessionExpired() {
@@ -215,14 +266,7 @@
             return true;
         if (!session.sessionExpiryDate)
             return false; // No expiry date = assume valid
-        try {
-            const expiryTime = new Date(session.sessionExpiryDate).getTime();
-            const now = Date.now();
-            return now >= expiryTime;
-        }
-        catch {
-            return true; // Invalid date format = expired
-        }
+        return isExpiryPassedUtc(session.sessionExpiryDate);
     }
     /**
      * Masterpass session'ın geçerli olup olmadığını kontrol eder.

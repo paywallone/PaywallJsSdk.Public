@@ -39,7 +39,7 @@ Tarayıcıda `http://localhost:4200/sdk-test` adresine gidin.
 paywall-sdk-test/
 ├── public/
 │   └── sdk/
-│       └── paywall-jssdk.1.0.9.umd.js  ← SDK UMD dosyası
+│       └── paywall-jssdk.1.0.10.umd.js  ← SDK UMD dosyası
 ├── src/
 │   ├── index.html                      ← SDK script tag burada
 │   ├── app/
@@ -53,7 +53,7 @@ paywall-sdk-test/
 SDK, `index.html` içinde script tag ile yüklenir:
 
 ```html
-<script src="/sdk/paywall-jssdk.1.0.9.umd.js"></script>
+<script src="/sdk/paywall-jssdk.1.0.10.umd.js"></script>
 <script>
   if (window.PaywallSDK && window.PaywallSDK.PaywallJsSdk) {
     window.PaywallJsSdk = window.PaywallSDK.PaywallJsSdk;
