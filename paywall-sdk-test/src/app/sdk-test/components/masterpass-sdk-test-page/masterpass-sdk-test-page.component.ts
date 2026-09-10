@@ -1288,40 +1288,27 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         normalizedResult: normalized
       });
 
-      // Extract result and responseCode
-      const result = (response as any).result || (response as any).data?.result;
-      const responseCode = result?.responseCode;
-      const has3DUrl = result?.url3d;
-
-      // Check OTP requirement (5010 for payment)
-      if (responseCode === '5010') {
-        const otpToken = result?.token;
-        if (otpToken) {
-          // Set OTP blocking state
-          this.flowRunner.updateFlowState({
-            awaitingOtp: true,
-            pendingAction: 'payWithRegisteredCard' as any,
-            otpToken: otpToken
-          });
-
-          // Open OTP popup
-          this.flowRunner.otpRequired$.next({
-            title: 'OTP Required',
-            message: result?.description || 'Please enter OTP code sent to your phone'
-          });
-
-          this.registeredPaymentLoading = false;
-          this.loadLogs();
-          this.updateCurrentState();
-          return; // STOP - no auto-retry
-        }
+      // BANK_OTP / MASTERPASS_OTP → open OTP popup (token comes from data.token)
+      if (this.handlePaymentOtpRequired(response, 'payWithRegisteredCard')) {
+        this.registeredPaymentLoading = false;
+        this.loadLogs();
+        this.updateCurrentState();
+        return;
       }
 
-      // Check 3D Secure
-      if (has3DUrl) {
-        this.registeredPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
-      } else if (response.success === true || response.status === 'SUCCESS' || (response as any).statusCode === 202) {
-        // Final success
+      const data = (response as any).data || {};
+      const result = (response as any).result || data.result;
+      const actionType = response.actionType || data.actionType;
+      const redirectUrl = data.redirectUrl || result?.url3d;
+      const responseCode = data.providerMeta?.responseCode || result?.responseCode;
+      const is3D = actionType === '3D' || actionType === 'THREE_D' || responseCode === '5010' || !!redirectUrl;
+
+      if (is3D) {
+        this.registeredPaymentError = '3D Secure required. URL: ' + (redirectUrl || 'N/A');
+      } else if (response.status === 'ACTION_REQUIRED') {
+        this.registeredPaymentSuccess = false;
+        this.registeredPaymentError = response.message || data.message || 'Action required';
+      } else if (response.success === true || response.status === 'SUCCESS') {
         this.registeredPaymentSuccess = true;
         this.registeredPaymentError = null;
       } else {
@@ -1461,40 +1448,27 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         normalizedResult: normalized
       });
 
-      // Extract result and responseCode
-      const result = (response as any).result || (response as any).data?.result;
-      const responseCode = result?.responseCode;
-      const has3DUrl = result?.url3d;
-
-      // Check OTP requirement (5010 for payment)
-      if (responseCode === '5010') {
-        const otpToken = result?.token;
-        if (otpToken) {
-          // Set OTP blocking state
-          this.flowRunner.updateFlowState({
-            awaitingOtp: true,
-            pendingAction: 'payWithManualCard' as any,
-            otpToken: otpToken
-          });
-
-          // Open OTP popup
-          this.flowRunner.otpRequired$.next({
-            title: 'OTP Required',
-            message: result?.description || 'Please enter OTP code sent to your phone'
-          });
-
-          this.manualPaymentLoading = false;
-          this.loadLogs();
-          this.updateCurrentState();
-          return; // STOP - no auto-retry
-        }
+      // BANK_OTP / MASTERPASS_OTP → open OTP popup (token comes from data.token)
+      if (this.handlePaymentOtpRequired(response, 'payWithManualCard')) {
+        this.manualPaymentLoading = false;
+        this.loadLogs();
+        this.updateCurrentState();
+        return;
       }
 
-      // Check 3D Secure
-      if (has3DUrl) {
-        this.manualPaymentError = '3D Secure required. URL: ' + (result?.url3d || 'N/A');
-      } else if (response.success === true || response.status === 'SUCCESS' || (response as any).statusCode === 202) {
-        // Final success
+      const data = (response as any).data || {};
+      const result = (response as any).result || data.result;
+      const actionType = response.actionType || data.actionType;
+      const redirectUrl = data.redirectUrl || result?.url3d;
+      const responseCode = data.providerMeta?.responseCode || result?.responseCode;
+      const is3D = actionType === '3D' || actionType === 'THREE_D' || responseCode === '5010' || !!redirectUrl;
+
+      if (is3D) {
+        this.manualPaymentError = '3D Secure required. URL: ' + (redirectUrl || 'N/A');
+      } else if (response.status === 'ACTION_REQUIRED') {
+        this.manualPaymentSuccess = false;
+        this.manualPaymentError = response.message || data.message || 'Action required';
+      } else if (response.success === true || response.status === 'SUCCESS') {
         this.manualPaymentSuccess = true;
         this.manualPaymentError = null;
       } else {
@@ -1717,6 +1691,56 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       this.loadLogs();
       this.updateCurrentState();
     }
+  }
+
+  /**
+   * Opens OTP dialog for payment BANK_OTP / MASTERPASS_OTP (5001 / 5008).
+   * SDK-normalized payment responses keep token at data.token (not data.result.token).
+   */
+  private handlePaymentOtpRequired(response: any, pendingAction: string): boolean {
+    const data = response?.data || {};
+    const rawResult = data.providerMeta?.raw?.response?.result || data.result || response?.result;
+    const status = response?.status || data.status;
+    const actionType = response?.actionType || data.actionType;
+    const responseCode =
+      data.providerMeta?.responseCode ||
+      rawResult?.responseCode ||
+      data.providerMeta?.raw?.response?.responseCode;
+
+    const otpToken =
+      data.token ||
+      rawResult?.token ||
+      data.providerMeta?.raw?.response?.token ||
+      response?.token;
+
+    const needsOtp =
+      (status === 'ACTION_REQUIRED' &&
+        (actionType === 'BANK_OTP' ||
+          actionType === 'MASTERPASS_OTP' ||
+          actionType === 'MASTERPASS_OTP_REQUIRED')) ||
+      responseCode === '5001' ||
+      responseCode === '5008';
+
+    if (!needsOtp || !otpToken) {
+      return false;
+    }
+
+    this.flowRunner.updateFlowState({
+      awaitingOtp: true,
+      pendingAction: pendingAction as any,
+      otpToken
+    });
+
+    this.flowRunner.otpRequired$.next({
+      title: actionType === 'BANK_OTP' || responseCode === '5001' ? 'Bank OTP Required' : 'OTP Required',
+      message:
+        rawResult?.description ||
+        data.message ||
+        response?.message ||
+        'Please enter OTP code sent to your phone'
+    });
+
+    return true;
   }
 
   // ========== DEBUG PANEL ==========
