@@ -406,6 +406,21 @@
     }
   }
   /**
+   * Ödeme OTP (5001/5008) bekleyen mark state'ini saklar.
+   * verifyOtp SUCCESS olunca PaymentStatus=3 (finansallaştırma bekleniyor) için kullanılır.
+   */
+  function setPendingPaymentOtp(pending) {
+    if (pending) {
+      internalState.pendingPaymentOtp = pending;
+    }
+    else {
+      delete internalState.pendingPaymentOtp;
+    }
+  }
+  function getPendingPaymentOtp() {
+    return internalState.pendingPaymentOtp || null;
+  }
+  /**
    * Provider state'i set eder.
    *
    * @param providerName - Provider adı (örn: 'masterpass')
@@ -5967,7 +5982,7 @@
    * **Request Body:**
    * - MasterpassPaymentId: Masterpass payment ID (optional)
    * - PaymentType: 1 (NonSecure) | 2 (3D) | 3 (Otp)
-   * - PaymentStatus: 1 (Started) | 2 (Unsuccessful)
+   * - PaymentStatus: 1 (Started) | 2 (Unsuccessful) | 3 (Finansallaştırma bekleniyor)
    * - ThreeDAddress: 3D Secure URL (optional)
    * - MasterpassOrderId: Masterpass order ID (optional)
    * - ErrorCode: Masterpass error code (optional)
@@ -5975,8 +5990,9 @@
    * - Response: Masterpass response'unun stringify edilmiş hali
    *
    * **PaymentStatus Mantığı:**
-   * - 1 (Started): Akış devam ediyor (SUCCESS veya ACTION_REQUIRED)
+   * - 1 (Started): Akış devam ediyor (ACTION_REQUIRED / OTP-3D)
    * - 2 (Unsuccessful): Masterpass'den işlem başarısız oldu (FAILED)
+   * - 3 (Finansallaştırma bekleniyor): SUCCESS + responseCode 0000 (ödeme veya OTP verify)
    */
   async function markAsStarted(params) {
     getConfig();
@@ -6051,6 +6067,20 @@
     catch (error) {
       error instanceof Error ? error.message : String(error);
     }
+  }
+  /**
+   * Ödeme OTP verify (0000) sonrası mark atar.
+   * PaymentStatus=3 → finansallaştırma bekleniyor.
+   */
+  async function markPaymentAfterOtpVerify(params) {
+    await markAsStarted({
+      ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+      paymentType: exports.PaymentType.Otp,
+      paymentStatus: 'SUCCESS',
+      ...(params.masterpassOrderId && { masterpassOrderId: params.masterpassOrderId }),
+      ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
+      responseCode: '0000',
+    });
   }
   /**
    * Masterpass SDK'yı çağırır.
@@ -6509,6 +6539,15 @@
               }),
             },
           });
+          if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
+            setPendingPaymentOtp({
+              ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+              ...(masterpassOrderId && { masterpassOrderId }),
+            });
+          }
+          else {
+            setPendingPaymentOtp(null);
+          }
           try {
             await markAsStarted({
               ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
@@ -6607,6 +6646,15 @@
               fallbackDescription = mpResult?.description || mpResponse?.description || '3D Secure authentication required';
             }
             if (fallbackPaymentType) {
+              if (fallbackStatus === 'ACTION_REQUIRED' && (fallbackActionType === 'BANK_OTP' || fallbackActionType === 'MASTERPASS_OTP')) {
+                setPendingPaymentOtp({
+                  ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                  ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
+                });
+              }
+              else {
+                setPendingPaymentOtp(null);
+              }
               try {
                 await markAsStarted({
                   ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
@@ -7201,6 +7249,15 @@
           description: description,
         },
       });
+      if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
+        setPendingPaymentOtp({
+          ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+          ...(masterpassOrderId && { masterpassOrderId }),
+        });
+      }
+      else {
+        setPendingPaymentOtp(null);
+      }
       // markAsStarted çağrısı
       try {
         await markAsStarted({
@@ -8762,6 +8819,26 @@
           stepName: 'normalized-sdk-response',
           normalizedSdkResponse: successResponse,
         });
+        const pendingPaymentOtp = getPendingPaymentOtp();
+        if (pendingPaymentOtp) {
+          const verifiedOrderId = mpResult?.retrievalReferenceNumber
+            || mpResponse?.retrievalReferenceNumber
+            || pendingPaymentOtp.masterpassOrderId;
+          try {
+            await markPaymentAfterOtpVerify({
+              ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+              ...(verifiedOrderId && { masterpassOrderId: verifiedOrderId }),
+              masterpassResponse: {
+                statusCode: statusCode || 200,
+                response: mpResponse,
+              },
+            });
+          }
+          catch (markError) {
+            // mark hatası OTP verify sonucunu durdurmaz
+          }
+          setPendingPaymentOtp(null);
+        }
         return successResponse;
       }
       else if (responseCode === '5008') {
