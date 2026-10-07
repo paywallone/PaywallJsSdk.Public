@@ -5481,6 +5481,48 @@
     return cardNumber.slice(-4);
   }
   /**
+   * Kart numarasından BIN (IIN) alır.
+   * ISO/IEC 7812 (2017+): ilk 8 hane.
+   */
+  function getBin(cardNumber) {
+    const digits = (cardNumber ?? '').replace(/\D/g, '');
+    return getFirst8(digits);
+  }
+  /**
+   * Payment init `CardBin` değerini üretir.
+   * Gerçek PAN (13–19 hane) varsa ilk 8 hane alınır.
+   * Alias/token PAN gibi durmuyorsa merchant'ın verdiği BIN kullanılır
+   * (8+ hane ise ilk 8, aksi halde olduğu gibi).
+   */
+  function resolveCardBin(cardNumber, providedBin) {
+    const panDigits = (cardNumber ?? '').replace(/\D/g, '');
+    if (/^\d{13,19}$/.test(panDigits)) {
+      return getBin(panDigits) || undefined;
+    }
+    const binDigits = (providedBin ?? '').replace(/\D/g, '');
+    if (!binDigits) {
+      return undefined;
+    }
+    return binDigits.length >= 8 ? binDigits.slice(0, 8) : binDigits;
+  }
+  /**
+   * Payment init `CardMasked` değerini üretir.
+   * Format: first8 + "******" + last4 (örn: "54006193******1616")
+   * Alias/token PAN gibi durmuyorsa merchant'ın verdiği mask kullanılır.
+   */
+  function resolveCardMasked(cardNumber, providedMasked) {
+    const panDigits = (cardNumber ?? '').replace(/\D/g, '');
+    if (/^\d{13,19}$/.test(panDigits)) {
+      const first8 = getFirst8(panDigits);
+      const last4 = getLast4(panDigits);
+      if (!first8 || !last4) {
+        return providedMasked || undefined;
+      }
+      return `${first8}******${last4}`;
+    }
+    return providedMasked || undefined;
+  }
+  /**
    * Request payload'ını maskeler (debug log için).
    * cardNumber, cvv gibi hassas alanları maskeler.
    */
@@ -6232,22 +6274,8 @@
           return createFailedResponse('SDK', SDK_MESSAGES.MISSING_OWNER_NAME, 'MISSING_OWNER_NAME');
         }
       }
-      let cardBin;
-      if (cardData.cardNumber && cardData.cardNumber.length >= 6) {
-        cardBin = cardData.cardNumber.substring(0, 6);
-      }
-      else if (card.cardBin) {
-        cardBin = card.cardBin;
-      }
-      let cardMasked;
-      if (cardData.cardNumber && cardData.cardNumber.length >= 10) {
-        const first6 = cardData.cardNumber.substring(0, 6);
-        const last4 = cardData.cardNumber.substring(cardData.cardNumber.length - 4);
-        cardMasked = `${first6}******${last4}`;
-      }
-      else if (card.cardMasked) {
-        cardMasked = card.cardMasked;
-      }
+      const cardBin = resolveCardBin(cardData.cardNumber, card.cardBin);
+      const cardMasked = resolveCardMasked(cardData.cardNumber, card.cardMasked);
       let ownerName;
       if (params.paymentSource === exports.PaymentSource.MANUAL_CARD) {
         ownerName = cardData.cardHolderName || cardData.ownerName || card.ownerName;
@@ -7005,17 +7033,9 @@
       if (!/^\d{3,4}$/.test(params.cardData.cvv)) {
         return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cardData.cvv), 'INVALID_CVV_FORMAT');
       }
-      // Card bin ve masked hesapla
-      let cardBin;
-      if (cardNumberClean.length >= 6) {
-        cardBin = cardNumberClean.substring(0, 6);
-      }
-      let cardMasked;
-      if (cardNumberClean.length >= 10) {
-        const first6 = cardNumberClean.substring(0, 6);
-        const last4 = cardNumberClean.substring(cardNumberClean.length - 4);
-        cardMasked = `${first6}******${last4}`;
-      }
+      // Card bin (ilk 8 hane / IIN) ve masked hesapla
+      const cardBin = resolveCardBin(cardNumberClean);
+      const cardMasked = resolveCardMasked(cardNumberClean);
       // Paywall init request body oluştur
       const requestBody = {
         SessionId: resolvedSessionId,
@@ -10563,7 +10583,7 @@
        *     installment: 1
        *   },
        *   card: {
-       *     cardBin: '460345',
+       *     cardBin: '46034512',
        *     cardMasked: '**** **** **** 1234'
        *   },
        *   cardData: {
@@ -10597,8 +10617,8 @@
        *
        * **KAYITLI KART BİLGİLERİ:**
        * - alias: Kart alias'ı (Masterpass'tan alınan)
-       * - maskedCard: Kartın maskeli numarası (örn: "460345******1234")
-       * - cardBin: Kartın BIN numarası (ilk 6 hane)
+       * - maskedCard: Kartın maskeli numarası (örn: "46034512******1234")
+       * - cardBin: Kartın BIN numarası (ilk 8 hane)
        * - cardHolderName: Kart sahibi adı
        *
        * **TOKEN MANTIĞI:**
@@ -10631,8 +10651,8 @@
        * const paymentInitResult = await PaywallJsSdk.payment.initWithRegisteredCard({
        *   sessionId,
        *   alias: 'CARD_ALIAS_123',
-       *   maskedCard: '460345******1234',
-       *   cardBin: '460345',
+       *   maskedCard: '46034512******1234',
+       *   cardBin: '46034512',
        *   cardHolderName: 'John Doe',
        *   force3D: false,
        *   paymentDetail: {
