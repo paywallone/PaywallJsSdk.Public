@@ -6125,6 +6125,48 @@
     });
   }
   /**
+   * Ödeme OTP (5001/5008) sonrası verifyOtp 5010 (3D) dönerse mark atar.
+   * PaymentStatus=1 (Started), ThreeDAddress = MasterpassReturnQueryString eklenmiş url3d.
+   */
+  async function markPaymentAfterOtpVerifyThreeD(params) {
+    await markAsStarted({
+      ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+      paymentType: exports.PaymentType.ThreeDSecure,
+      paymentStatus: 'ACTION_REQUIRED',
+      ...(params.threeDAddress && { threeDAddress: params.threeDAddress }),
+      ...(params.masterpassOrderId && { masterpassOrderId: params.masterpassOrderId }),
+      ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
+      responseCode: '5010',
+    });
+  }
+  /**
+   * Masterpass 3D URL'ine (url3d / url3dSuccess / url3dFail) Paywall'ın MasterpassReturnQueryString'ini ekler.
+   */
+  function appendMasterpassReturnQueryString(url, queryString) {
+    if (!url || !queryString) {
+      return url;
+    }
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${queryString.replace(/^[?&]/, '')}`;
+  }
+  /**
+   * Ödeme OTP (5001/5008) beklerken verifyOtp için saklanacak state'i oluşturur.
+   */
+  function createPendingPaymentOtp(paymentInitData, extras) {
+    return {
+      ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+      ...(extras.masterpassOrderId && { masterpassOrderId: extras.masterpassOrderId }),
+      ...(extras.masterpassReturnQueryString && { masterpassReturnQueryString: extras.masterpassReturnQueryString }),
+      ...(extras.sessionId && { sessionId: extras.sessionId }),
+      ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
+      ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
+      ...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
+      ...(paymentInitData.merchantUniqueCode && { merchantUniqueCode: paymentInitData.merchantUniqueCode }),
+      ...(extras.successUrl && { successUrl: extras.successUrl }),
+      ...(extras.failUrl && { failUrl: extras.failUrl }),
+    };
+  }
+  /**
    * Masterpass SDK'yı çağırır.
    * Payment source'a göre doğru Masterpass SDK fonksiyonunu kullanır.
    *
@@ -6568,10 +6610,13 @@
             },
           });
           if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-            setPendingPaymentOtp({
-              ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
               ...(masterpassOrderId && { masterpassOrderId }),
-            });
+              ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+              sessionId: resolvedSessionId,
+              successUrl: params.paymentDetail.successUrl,
+              failUrl: params.paymentDetail.failUrl,
+            }));
           }
           else {
             setPendingPaymentOtp(null);
@@ -6675,10 +6720,13 @@
             }
             if (fallbackPaymentType) {
               if (fallbackStatus === 'ACTION_REQUIRED' && (fallbackActionType === 'BANK_OTP' || fallbackActionType === 'MASTERPASS_OTP')) {
-                setPendingPaymentOtp({
-                  ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                   ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
-                });
+                  ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                  sessionId: resolvedSessionId,
+                  successUrl: params.paymentDetail.successUrl,
+                  failUrl: params.paymentDetail.failUrl,
+                }));
               }
               else {
                 setPendingPaymentOtp(null);
@@ -7270,10 +7318,13 @@
         },
       });
       if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-        setPendingPaymentOtp({
-          ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+        setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
           ...(masterpassOrderId && { masterpassOrderId }),
-        });
+          ...(paymentInitData.masterpassReturnQueryString && { masterpassReturnQueryString: paymentInitData.masterpassReturnQueryString }),
+          sessionId: resolvedSessionId,
+          successUrl: params.paymentDetail.successUrl,
+          failUrl: params.paymentDetail.failUrl,
+        }));
       }
       else {
         setPendingPaymentOtp(null);
@@ -8899,6 +8950,73 @@
           stepName: 'normalized-sdk-response',
           normalizedSdkResponse: actionRequiredResponse,
         });
+        return actionRequiredResponse;
+      }
+      else if (responseCode === '5010') {
+        // ACTION_REQUIRED: OTP sonrası 3D Secure doğrulama gerekiyor
+        // payment.init / registerAndPurchase ile aynı: url3d / url3dSuccess / url3dFail'e MasterpassReturnQueryString eklenir
+        setOtpFlowToken(null);
+        const threeDToken = mpResult?.token || mpResponse?.token;
+        const pendingPaymentOtp = getPendingPaymentOtp();
+        const masterpassReturnQueryString = pendingPaymentOtp?.masterpassReturnQueryString;
+        const baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
+        const threeDAddress = appendMasterpassReturnQueryString(baseUrl3d, masterpassReturnQueryString);
+        const finalUrl3dSuccess = appendMasterpassReturnQueryString(mpResult?.url3dSuccess || mpResponse?.url3dSuccess, masterpassReturnQueryString);
+        const finalUrl3dFail = appendMasterpassReturnQueryString(mpResult?.url3dFail || mpResponse?.url3dFail, masterpassReturnQueryString);
+        const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber
+          || mpResponse?.retrievalReferenceNumber
+          || pendingPaymentOtp?.masterpassOrderId;
+        // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+        window.FlowDirectable = {
+          uri: mpResponse?.contentLocation || '',
+          token: threeDToken || getMasterpassSession()?.masterpassToken,
+          url3d: threeDAddress,
+          url3dSuccess: finalUrl3dSuccess,
+          url3dFail: finalUrl3dFail,
+        };
+        const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', '3D', SDK_MESSAGES.THREE_D_REQUIRED, {
+          isVerified: false,
+          ...(threeDToken && { token: threeDToken }),
+          ...(mpResult?.cardUniqueNumber && { cardUniqueNumber: mpResult.cardUniqueNumber }),
+          ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+          ...(threeDAddress && { redirectUrl: threeDAddress }),
+          ...(finalUrl3dSuccess && { url3dSuccess: finalUrl3dSuccess }),
+          ...(finalUrl3dFail && { url3dFail: finalUrl3dFail }),
+          ...(pendingPaymentOtp?.sessionId && { sessionId: pendingPaymentOtp.sessionId }),
+          ...(pendingPaymentOtp?.successUrl && { successUrl: pendingPaymentOtp.successUrl }),
+          ...(pendingPaymentOtp?.failUrl && { failUrl: pendingPaymentOtp.failUrl }),
+          ...(pendingPaymentOtp?.paymentId !== undefined && { paymentId: pendingPaymentOtp.paymentId }),
+          ...(pendingPaymentOtp?.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+          ...(pendingPaymentOtp?.activityId !== undefined && { activityId: pendingPaymentOtp.activityId }),
+          ...(pendingPaymentOtp?.uniqueCode && { uniqueCode: pendingPaymentOtp.uniqueCode }),
+          ...(pendingPaymentOtp?.merchantUniqueCode && { merchantUniqueCode: pendingPaymentOtp.merchantUniqueCode }),
+        }, {
+          httpStatus: statusCode || 202,
+          responseCode: responseCode,
+          ...(config.logLevel === 'debug' && { raw: mpResponse }),
+        });
+        logDebugFlow(config, {
+          functionName: 'verifyOtp',
+          stepName: 'normalized-sdk-response',
+          normalizedSdkResponse: actionRequiredResponse,
+        });
+        if (pendingPaymentOtp) {
+          try {
+            await markPaymentAfterOtpVerifyThreeD({
+              ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+              ...(retrievalReferenceNumber && { masterpassOrderId: retrievalReferenceNumber }),
+              ...(threeDAddress && { threeDAddress }),
+              masterpassResponse: {
+                statusCode: statusCode || 202,
+                response: mpResponse,
+              },
+            });
+          }
+          catch (markError) {
+            // mark hatası OTP verify sonucunu durdurmaz
+          }
+          setPendingPaymentOtp(null);
+        }
         return actionRequiredResponse;
       }
       else {
