@@ -5481,6 +5481,48 @@
         return cardNumber.slice(-4);
     }
     /**
+     * Kart numarasından BIN (IIN) alır.
+     * ISO/IEC 7812 (2017+): ilk 8 hane.
+     */
+    function getBin(cardNumber) {
+        const digits = (cardNumber ?? '').replace(/\D/g, '');
+        return getFirst8(digits);
+    }
+    /**
+     * Payment init `CardBin` değerini üretir.
+     * Gerçek PAN (13–19 hane) varsa ilk 8 hane alınır.
+     * Alias/token PAN gibi durmuyorsa merchant'ın verdiği BIN kullanılır
+     * (8+ hane ise ilk 8, aksi halde olduğu gibi).
+     */
+    function resolveCardBin(cardNumber, providedBin) {
+        const panDigits = (cardNumber ?? '').replace(/\D/g, '');
+        if (/^\d{13,19}$/.test(panDigits)) {
+            return getBin(panDigits) || undefined;
+        }
+        const binDigits = (providedBin ?? '').replace(/\D/g, '');
+        if (!binDigits) {
+            return undefined;
+        }
+        return binDigits.length >= 8 ? binDigits.slice(0, 8) : binDigits;
+    }
+    /**
+     * Payment init `CardMasked` değerini üretir.
+     * Format: first8 + "******" + last4 (örn: "54006193******1616")
+     * Alias/token PAN gibi durmuyorsa merchant'ın verdiği mask kullanılır.
+     */
+    function resolveCardMasked(cardNumber, providedMasked) {
+        const panDigits = (cardNumber ?? '').replace(/\D/g, '');
+        if (/^\d{13,19}$/.test(panDigits)) {
+            const first8 = getFirst8(panDigits);
+            const last4 = getLast4(panDigits);
+            if (!first8 || !last4) {
+                return providedMasked || undefined;
+            }
+            return `${first8}******${last4}`;
+        }
+        return providedMasked || undefined;
+    }
+    /**
      * Request payload'ını maskeler (debug log için).
      * cardNumber, cvv gibi hassas alanları maskeler.
      */
@@ -6083,6 +6125,48 @@
         });
     }
     /**
+     * Ödeme OTP (5001/5008) sonrası verifyOtp 5010 (3D) dönerse mark atar.
+     * PaymentStatus=1 (Started), ThreeDAddress = MasterpassReturnQueryString eklenmiş url3d.
+     */
+    async function markPaymentAfterOtpVerifyThreeD(params) {
+        await markAsStarted({
+            ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+            paymentType: exports.PaymentType.ThreeDSecure,
+            paymentStatus: 'ACTION_REQUIRED',
+            ...(params.threeDAddress && { threeDAddress: params.threeDAddress }),
+            ...(params.masterpassOrderId && { masterpassOrderId: params.masterpassOrderId }),
+            ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
+            responseCode: '5010',
+        });
+    }
+    /**
+     * Masterpass 3D URL'ine (url3d / url3dSuccess / url3dFail) Paywall'ın MasterpassReturnQueryString'ini ekler.
+     */
+    function appendMasterpassReturnQueryString(url, queryString) {
+        if (!url || !queryString) {
+            return url;
+        }
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}${queryString.replace(/^[?&]/, '')}`;
+    }
+    /**
+     * Ödeme OTP (5001/5008) beklerken verifyOtp için saklanacak state'i oluşturur.
+     */
+    function createPendingPaymentOtp(paymentInitData, extras) {
+        return {
+            ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            ...(extras.masterpassOrderId && { masterpassOrderId: extras.masterpassOrderId }),
+            ...(extras.masterpassReturnQueryString && { masterpassReturnQueryString: extras.masterpassReturnQueryString }),
+            ...(extras.sessionId && { sessionId: extras.sessionId }),
+            ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
+            ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
+            ...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
+            ...(paymentInitData.merchantUniqueCode && { merchantUniqueCode: paymentInitData.merchantUniqueCode }),
+            ...(extras.successUrl && { successUrl: extras.successUrl }),
+            ...(extras.failUrl && { failUrl: extras.failUrl }),
+        };
+    }
+    /**
      * Masterpass SDK'yı çağırır.
      * Payment source'a göre doğru Masterpass SDK fonksiyonunu kullanır.
      *
@@ -6232,22 +6316,8 @@
                     return createFailedResponse('SDK', SDK_MESSAGES.MISSING_OWNER_NAME, 'MISSING_OWNER_NAME');
                 }
             }
-            let cardBin;
-            if (cardData.cardNumber && cardData.cardNumber.length >= 6) {
-                cardBin = cardData.cardNumber.substring(0, 6);
-            }
-            else if (card.cardBin) {
-                cardBin = card.cardBin;
-            }
-            let cardMasked;
-            if (cardData.cardNumber && cardData.cardNumber.length >= 10) {
-                const first6 = cardData.cardNumber.substring(0, 6);
-                const last4 = cardData.cardNumber.substring(cardData.cardNumber.length - 4);
-                cardMasked = `${first6}******${last4}`;
-            }
-            else if (card.cardMasked) {
-                cardMasked = card.cardMasked;
-            }
+            const cardBin = resolveCardBin(cardData.cardNumber, card.cardBin);
+            const cardMasked = resolveCardMasked(cardData.cardNumber, card.cardMasked);
             let ownerName;
             if (params.paymentSource === exports.PaymentSource.MANUAL_CARD) {
                 ownerName = cardData.cardHolderName || cardData.ownerName || card.ownerName;
@@ -6540,10 +6610,13 @@
                         },
                     });
                     if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-                        setPendingPaymentOtp({
-                            ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                        setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                             ...(masterpassOrderId && { masterpassOrderId }),
-                        });
+                            ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                            sessionId: resolvedSessionId,
+                            successUrl: params.paymentDetail.successUrl,
+                            failUrl: params.paymentDetail.failUrl,
+                        }));
                     }
                     else {
                         setPendingPaymentOtp(null);
@@ -6647,10 +6720,13 @@
                         }
                         if (fallbackPaymentType) {
                             if (fallbackStatus === 'ACTION_REQUIRED' && (fallbackActionType === 'BANK_OTP' || fallbackActionType === 'MASTERPASS_OTP')) {
-                                setPendingPaymentOtp({
-                                    ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                                     ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
-                                });
+                                    ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                                    sessionId: resolvedSessionId,
+                                    successUrl: params.paymentDetail.successUrl,
+                                    failUrl: params.paymentDetail.failUrl,
+                                }));
                             }
                             else {
                                 setPendingPaymentOtp(null);
@@ -7005,17 +7081,9 @@
             if (!/^\d{3,4}$/.test(params.cardData.cvv)) {
                 return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cardData.cvv), 'INVALID_CVV_FORMAT');
             }
-            // Card bin ve masked hesapla
-            let cardBin;
-            if (cardNumberClean.length >= 6) {
-                cardBin = cardNumberClean.substring(0, 6);
-            }
-            let cardMasked;
-            if (cardNumberClean.length >= 10) {
-                const first6 = cardNumberClean.substring(0, 6);
-                const last4 = cardNumberClean.substring(cardNumberClean.length - 4);
-                cardMasked = `${first6}******${last4}`;
-            }
+            // Card bin (ilk 8 hane / IIN) ve masked hesapla
+            const cardBin = resolveCardBin(cardNumberClean);
+            const cardMasked = resolveCardMasked(cardNumberClean);
             // Paywall init request body oluştur
             const requestBody = {
                 SessionId: resolvedSessionId,
@@ -7250,10 +7318,13 @@
                 },
             });
             if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-                setPendingPaymentOtp({
-                    ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                     ...(masterpassOrderId && { masterpassOrderId }),
-                });
+                    ...(paymentInitData.masterpassReturnQueryString && { masterpassReturnQueryString: paymentInitData.masterpassReturnQueryString }),
+                    sessionId: resolvedSessionId,
+                    successUrl: params.paymentDetail.successUrl,
+                    failUrl: params.paymentDetail.failUrl,
+                }));
             }
             else {
                 setPendingPaymentOtp(null);
@@ -8879,6 +8950,73 @@
                     stepName: 'normalized-sdk-response',
                     normalizedSdkResponse: actionRequiredResponse,
                 });
+                return actionRequiredResponse;
+            }
+            else if (responseCode === '5010') {
+                // ACTION_REQUIRED: OTP sonrası 3D Secure doğrulama gerekiyor
+                // payment.init / registerAndPurchase ile aynı: url3d / url3dSuccess / url3dFail'e MasterpassReturnQueryString eklenir
+                setOtpFlowToken(null);
+                const threeDToken = mpResult?.token || mpResponse?.token;
+                const pendingPaymentOtp = getPendingPaymentOtp();
+                const masterpassReturnQueryString = pendingPaymentOtp?.masterpassReturnQueryString;
+                const baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
+                const threeDAddress = appendMasterpassReturnQueryString(baseUrl3d, masterpassReturnQueryString);
+                const finalUrl3dSuccess = appendMasterpassReturnQueryString(mpResult?.url3dSuccess || mpResponse?.url3dSuccess, masterpassReturnQueryString);
+                const finalUrl3dFail = appendMasterpassReturnQueryString(mpResult?.url3dFail || mpResponse?.url3dFail, masterpassReturnQueryString);
+                const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber
+                    || mpResponse?.retrievalReferenceNumber
+                    || pendingPaymentOtp?.masterpassOrderId;
+                // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+                window.FlowDirectable = {
+                    uri: mpResponse?.contentLocation || '',
+                    token: threeDToken || getMasterpassSession()?.masterpassToken,
+                    url3d: threeDAddress,
+                    url3dSuccess: finalUrl3dSuccess,
+                    url3dFail: finalUrl3dFail,
+                };
+                const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', '3D', SDK_MESSAGES.THREE_D_REQUIRED, {
+                    isVerified: false,
+                    ...(threeDToken && { token: threeDToken }),
+                    ...(mpResult?.cardUniqueNumber && { cardUniqueNumber: mpResult.cardUniqueNumber }),
+                    ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+                    ...(threeDAddress && { redirectUrl: threeDAddress }),
+                    ...(finalUrl3dSuccess && { url3dSuccess: finalUrl3dSuccess }),
+                    ...(finalUrl3dFail && { url3dFail: finalUrl3dFail }),
+                    ...(pendingPaymentOtp?.sessionId && { sessionId: pendingPaymentOtp.sessionId }),
+                    ...(pendingPaymentOtp?.successUrl && { successUrl: pendingPaymentOtp.successUrl }),
+                    ...(pendingPaymentOtp?.failUrl && { failUrl: pendingPaymentOtp.failUrl }),
+                    ...(pendingPaymentOtp?.paymentId !== undefined && { paymentId: pendingPaymentOtp.paymentId }),
+                    ...(pendingPaymentOtp?.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+                    ...(pendingPaymentOtp?.activityId !== undefined && { activityId: pendingPaymentOtp.activityId }),
+                    ...(pendingPaymentOtp?.uniqueCode && { uniqueCode: pendingPaymentOtp.uniqueCode }),
+                    ...(pendingPaymentOtp?.merchantUniqueCode && { merchantUniqueCode: pendingPaymentOtp.merchantUniqueCode }),
+                }, {
+                    httpStatus: statusCode || 202,
+                    responseCode: responseCode,
+                    ...(config.logLevel === 'debug' && { raw: mpResponse }),
+                });
+                logDebugFlow(config, {
+                    functionName: 'verifyOtp',
+                    stepName: 'normalized-sdk-response',
+                    normalizedSdkResponse: actionRequiredResponse,
+                });
+                if (pendingPaymentOtp) {
+                    try {
+                        await markPaymentAfterOtpVerifyThreeD({
+                            ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+                            ...(retrievalReferenceNumber && { masterpassOrderId: retrievalReferenceNumber }),
+                            ...(threeDAddress && { threeDAddress }),
+                            masterpassResponse: {
+                                statusCode: statusCode || 202,
+                                response: mpResponse,
+                            },
+                        });
+                    }
+                    catch (markError) {
+                        // mark hatası OTP verify sonucunu durdurmaz
+                    }
+                    setPendingPaymentOtp(null);
+                }
                 return actionRequiredResponse;
             }
             else {
@@ -10563,7 +10701,7 @@
              *     installment: 1
              *   },
              *   card: {
-             *     cardBin: '460345',
+             *     cardBin: '46034512',
              *     cardMasked: '**** **** **** 1234'
              *   },
              *   cardData: {
@@ -10597,8 +10735,8 @@
              *
              * **KAYITLI KART BİLGİLERİ:**
              * - alias: Kart alias'ı (Masterpass'tan alınan)
-             * - maskedCard: Kartın maskeli numarası (örn: "460345******1234")
-             * - cardBin: Kartın BIN numarası (ilk 6 hane)
+             * - maskedCard: Kartın maskeli numarası (örn: "46034512******1234")
+             * - cardBin: Kartın BIN numarası (ilk 8 hane)
              * - cardHolderName: Kart sahibi adı
              *
              * **TOKEN MANTIĞI:**
@@ -10631,8 +10769,8 @@
              * const paymentInitResult = await PaywallJsSdk.payment.initWithRegisteredCard({
              *   sessionId,
              *   alias: 'CARD_ALIAS_123',
-             *   maskedCard: '460345******1234',
-             *   cardBin: '460345',
+             *   maskedCard: '46034512******1234',
+             *   cardBin: '46034512',
              *   cardHolderName: 'John Doe',
              *   force3D: false,
              *   paymentDetail: {
