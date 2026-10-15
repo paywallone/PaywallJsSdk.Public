@@ -326,6 +326,22 @@
         return internalState.masterpassToken;
     }
     /**
+     * Masterpass token'ı throw etmeden döner (guard kontrolleri için).
+     *
+     * @returns string | null - token yoksa null
+     */
+    function peekMasterpassToken() {
+        return internalState.masterpassToken || null;
+    }
+    /**
+     * Masterpass merchant ID'yi throw etmeden döner (guard kontrolleri için).
+     *
+     * @returns string | null - merchantId yoksa null
+     */
+    function peekMasterpassMerchantId() {
+        return internalState.masterpassMerchantId || null;
+    }
+    /**
      * OTP akış token'ını saklar (5001/5008 response'taki result.token).
      * verifyOtp ve resendOtp bu token ile istek atar; yoksa Masterpass session token kullanılır.
      *
@@ -5302,7 +5318,8 @@
         MISSING_EXPIRY_DATE: 'Card expiry date is missing. Please provide in MMYY format (e.g., 1226).',
         INVALID_EXPIRY_DATE_FORMAT: (value) => `Card expiry date format is invalid. Entered value: "${value}". Please provide in MMYY format (e.g., 1226 - December 2026).`,
         MISSING_CVV: 'CVV code is missing. Please provide the 3 or 4 digit CVV code from the back of your card.',
-        INVALID_CVV_FORMAT: (value) => `CVV code format is invalid. Entered value: "${value}". Please provide a 3 or 4 digit CVV code.`,
+        // PCI-DSS: girilen CVV değeri mesaja YAZILMAZ (merchant mesajı loglayabilir)
+        INVALID_CVV_FORMAT: 'CVV code format is invalid. Please provide a 3 or 4 digit CVV code.',
         MISSING_REQUEST_REFERENCE_NUMBER: 'Request reference number is missing. Please provide a unique reference number.',
         // Card Operations - Errors
         INVALID_ACCOUNT_KEY: 'Account key (phone number or email) is invalid. Please provide a valid phone number or email address.',
@@ -5671,7 +5688,10 @@
             timestamp: new Date().toISOString(),
         };
         // Mask sensitive data (cardNumber, cvv, token, etc.)
-        maskSensitiveData(fullEntry);
+        const maskedEntry = maskSensitiveData(fullEntry);
+        if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+            console.debug('[PaywallJsSdk]', maskedEntry);
+        }
     }
     /**
      * Masks sensitive data in debug logs.
@@ -5709,6 +5729,8 @@
             'authorization',
             'password',
             'pin',
+            'otpCode',
+            'expiryDate',
         ];
         const masked = Array.isArray(obj) ? [...obj] : { ...obj };
         for (const key in masked) {
@@ -6037,7 +6059,7 @@
      * - 3 (Finansallaştırma bekleniyor): SUCCESS + responseCode 0000 (ödeme veya OTP verify)
      */
     async function markAsStarted(params) {
-        getConfig();
+        const config = getConfig();
         try {
             const envConfig = getResolvedEnvironmentConfig();
             if (!envConfig) {
@@ -6107,7 +6129,18 @@
             await httpPost(markUrl, requestBody);
         }
         catch (error) {
-            error instanceof Error ? error.message : String(error);
+            // Mark hatası ödeme akışını durdurmaz; debug modunda görünür olsun diye loglanır
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logDebugFlow(config, {
+                functionName: 'markAsStarted',
+                stepName: 'mark-failed',
+                metadata: {
+                    error: errorMessage,
+                    paymentType: params.paymentType,
+                    paymentStatus: params.paymentStatus,
+                    ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+                },
+            });
         }
     }
     /**
@@ -6123,6 +6156,48 @@
             ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
             responseCode: '0000',
         });
+    }
+    /**
+     * Ödeme OTP (5001/5008) sonrası verifyOtp 5010 (3D) dönerse mark atar.
+     * PaymentStatus=1 (Started), ThreeDAddress = MasterpassReturnQueryString eklenmiş url3d.
+     */
+    async function markPaymentAfterOtpVerifyThreeD(params) {
+        await markAsStarted({
+            ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+            paymentType: exports.PaymentType.ThreeDSecure,
+            paymentStatus: 'ACTION_REQUIRED',
+            ...(params.threeDAddress && { threeDAddress: params.threeDAddress }),
+            ...(params.masterpassOrderId && { masterpassOrderId: params.masterpassOrderId }),
+            ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
+            responseCode: '5010',
+        });
+    }
+    /**
+     * Masterpass 3D URL'ine (url3d / url3dSuccess / url3dFail) Paywall'ın MasterpassReturnQueryString'ini ekler.
+     */
+    function appendMasterpassReturnQueryString(url, queryString) {
+        if (!url || !queryString) {
+            return url;
+        }
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}${queryString.replace(/^[?&]/, '')}`;
+    }
+    /**
+     * Ödeme OTP (5001/5008) beklerken verifyOtp için saklanacak state'i oluşturur.
+     */
+    function createPendingPaymentOtp(paymentInitData, extras) {
+        return {
+            ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            ...(extras.masterpassOrderId && { masterpassOrderId: extras.masterpassOrderId }),
+            ...(extras.masterpassReturnQueryString && { masterpassReturnQueryString: extras.masterpassReturnQueryString }),
+            ...(extras.sessionId && { sessionId: extras.sessionId }),
+            ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
+            ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
+            ...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
+            ...(paymentInitData.merchantUniqueCode && { merchantUniqueCode: paymentInitData.merchantUniqueCode }),
+            ...(extras.successUrl && { successUrl: extras.successUrl }),
+            ...(extras.failUrl && { failUrl: extras.failUrl }),
+        };
     }
     /**
      * Masterpass SDK'yı çağırır.
@@ -6180,8 +6255,10 @@
     }
     // Payment init işlemi (POST /api/paywall/masterpass/by/sdk/payment/init)
     async function initPayment(params) {
-        // SDK lifecycle guard - EN BAŞTA kontrol
-        assertSdkInitialized();
+        // SDK lifecycle guard - EN BAŞTA kontrol (throw yerine FAILED döner)
+        if (!isSdkInitialized()) {
+            return createFailedResponse('SDK', SDK_MESSAGES.SDK_NOT_INITIALIZED, 'SDK_NOT_INITIALIZED');
+        }
         if (!isSessionValid()) {
             return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.SESSION_EXPIRED_ACTION_HINT });
         }
@@ -6190,7 +6267,12 @@
             return createFailedResponse('SDK', 'Masterpass session is invalid. MasterpassToken is missing. Please create a new session.', 'INVALID_SESSION');
         }
         if (!isMasterpassInitialized()) {
-            await ensureMasterpassInitialized();
+            try {
+                await ensureMasterpassInitialized();
+            }
+            catch (ensureError) {
+                return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
+            }
         }
         if (typeof window !== 'undefined') {
             const Masterpass = window.Masterpass;
@@ -6267,7 +6349,7 @@
                     return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CVV_MANUAL, 'MISSING_CVV');
                 }
                 if (!/^\d{3,4}$/.test(cardData.cvv)) {
-                    return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', cardData.cvv), 'INVALID_CVV_FORMAT');
+                    return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
                 }
                 const ownerNameCheck = cardData.cardHolderName || cardData.ownerName || card.ownerName;
                 if (!ownerNameCheck || ownerNameCheck.trim() === '') {
@@ -6542,6 +6624,7 @@
                     }
                     else {
                         paymentStatus = 'FAILED';
+                        paymentType = exports.PaymentType.Unknown;
                         const mappedError = mapMasterpassError(mpResponse);
                         if (mappedError) {
                             description = mappedError.message;
@@ -6568,10 +6651,13 @@
                         },
                     });
                     if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-                        setPendingPaymentOtp({
-                            ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                        setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                             ...(masterpassOrderId && { masterpassOrderId }),
-                        });
+                            ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                            sessionId: resolvedSessionId,
+                            successUrl: params.paymentDetail.successUrl,
+                            failUrl: params.paymentDetail.failUrl,
+                        }));
                     }
                     else {
                         setPendingPaymentOtp(null);
@@ -6673,12 +6759,23 @@
                             fallbackPaymentType = exports.PaymentType.ThreeDSecure;
                             fallbackDescription = mpResult?.description || mpResponse?.description || '3D Secure authentication required';
                         }
+                        else {
+                            // Tanınmayan responseCode → FAILED, PaymentType bilinemez → Unknown (4)
+                            fallbackPaymentType = exports.PaymentType.Unknown;
+                        }
+                        // 3D ise url3d'ye MasterpassReturnQueryString eklenir (normal akış ile aynı)
+                        const fallbackThreeDAddress = fallbackActionType === '3D'
+                            ? appendMasterpassReturnQueryString(mpResult?.url3d || mpResponse?.url3d, masterpassReturnQueryString)
+                            : undefined;
                         if (fallbackPaymentType) {
                             if (fallbackStatus === 'ACTION_REQUIRED' && (fallbackActionType === 'BANK_OTP' || fallbackActionType === 'MASTERPASS_OTP')) {
-                                setPendingPaymentOtp({
-                                    ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                                     ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
-                                });
+                                    ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                                    sessionId: resolvedSessionId,
+                                    successUrl: params.paymentDetail.successUrl,
+                                    failUrl: params.paymentDetail.failUrl,
+                                }));
                             }
                             else {
                                 setPendingPaymentOtp(null);
@@ -6688,7 +6785,7 @@
                                     ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
                                     paymentType: fallbackPaymentType,
                                     paymentStatus: fallbackStatus,
-                                    ...(fallbackActionType === '3D' && mpResult?.url3d && { threeDAddress: mpResult.url3d }),
+                                    ...(fallbackThreeDAddress && { threeDAddress: fallbackThreeDAddress }),
                                     ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
                                     masterpassResponse: {
                                         statusCode: errorStatusCode || 200,
@@ -6715,7 +6812,7 @@
                             ...(fallbackActionType === 'BANK_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
                             ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.token && { token: mpResult.token }),
                             ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
-                            ...(fallbackActionType === '3D' && (mpResult?.url3d || mpResponse?.url3d) && { redirectUrl: mpResult?.url3d || mpResponse?.url3d }),
+                            ...(fallbackThreeDAddress && { redirectUrl: fallbackThreeDAddress }),
                             ...(fallbackActionType === '3D' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
                             ...(params.paymentDetail.successUrl && { successUrl: params.paymentDetail.successUrl }),
                             ...(params.paymentDetail.failUrl && { failUrl: params.paymentDetail.failUrl }),
@@ -6976,8 +7073,10 @@
      * ```
      */
     async function registerAndPurchase(params) {
-        // SDK lifecycle guard - EN BAŞTA kontrol
-        assertSdkInitialized();
+        // SDK lifecycle guard - EN BAŞTA kontrol (throw yerine FAILED döner)
+        if (!isSdkInitialized()) {
+            return createFailedResponse('SDK', SDK_MESSAGES.SDK_NOT_INITIALIZED, 'SDK_NOT_INITIALIZED');
+        }
         if (!isSessionValid()) {
             return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.SESSION_EXPIRED_ACTION_HINT });
         }
@@ -6986,7 +7085,12 @@
             return createFailedResponse('SDK', 'Masterpass session is invalid. MasterpassToken is missing. Please create a new session.', 'INVALID_SESSION');
         }
         if (!isMasterpassInitialized()) {
-            await ensureMasterpassInitialized();
+            try {
+                await ensureMasterpassInitialized();
+            }
+            catch (ensureError) {
+                return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
+            }
         }
         if (typeof window !== 'undefined') {
             const Masterpass = window.Masterpass;
@@ -7003,6 +7107,9 @@
             return createFailedResponse('SDK', SDK_MESSAGES.MISSING_SESSION_ID, 'MISSING_SESSION_ID');
         }
         const config = getConfig();
+        // Hata yollarında Paywall'a FAILED mark atabilmek için (ödeme "Created" durumunda kalmasın)
+        let failureMarkPaymentId;
+        let paymentMarked = false;
         try {
             const envConfig = getResolvedEnvironmentConfig();
             if (!envConfig) {
@@ -7031,7 +7138,7 @@
                 return createFailedResponse('SDK', getMessage('INVALID_EXPIRY_DATE_FORMAT', params.cardData.expiryDate), 'INVALID_EXPIRY_DATE_FORMAT');
             }
             if (!/^\d{3,4}$/.test(params.cardData.cvv)) {
-                return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cardData.cvv), 'INVALID_CVV_FORMAT');
+                return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
             }
             // Card bin (ilk 8 hane / IIN) ve masked hesapla
             const cardBin = resolveCardBin(cardNumberClean);
@@ -7104,8 +7211,25 @@
             const uniqueCode = paywallMetadata?.UniqueCode;
             const merchantUniqueCode = paywallMetadata?.MerchantUniqueKey;
             const masterpassReturnQueryString = paywallMetadata?.MasterpassReturnQueryString;
+            failureMarkPaymentId = masterpassPaymentId || undefined;
             const masterpassRequestBody = body.Masterpass?.MasterpassRequestBody || null;
             if (!masterpassRequestBody) {
+                // Paywall init başarılı ama MasterpassRequestBody boş — Masterpass akışı hiç
+                // başlamadı. Paywall tarafında kayıt "Created" durumunda kalmasın diye
+                // FAILED olarak işaretliyoruz (initPayment ile aynı).
+                paymentMarked = true;
+                try {
+                    await markAsStarted({
+                        ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+                        paymentType: exports.PaymentType.Unknown,
+                        paymentStatus: 'FAILED',
+                        masterpassOrderId: '-',
+                        responseCode: 'MISSING_MASTERPASS_REQUEST_BODY',
+                    });
+                }
+                catch (markError) {
+                    // markAsStarted hatası ödeme akışını durdurmaz
+                }
                 return createFailedResponse('PAYWALL', SDK_MESSAGES.MISSING_MASTERPASS_REQUEST_BODY, 'MISSING_MASTERPASS_REQUEST_BODY');
             }
             const paymentInitData = {
@@ -7165,7 +7289,33 @@
             catch (error) {
                 const errorStatusCode = error?.statusCode || 0;
                 const errorResponse = error?.response || error;
-                return createFailedResponse('MASTERPASS', errorResponse?.exception?.message || errorResponse?.message || 'Masterpass registerAndPurchase failed', errorResponse?.exception?.code || String(errorStatusCode) || 'MASTERPASS_ERROR', {
+                const failureErrorCode = errorResponse?.exception?.code || String(errorStatusCode) || 'MASTERPASS_ERROR';
+                // Paywall backend'e FAILED bildirimi gönder (initPayment ile aynı)
+                // PaymentType: Masterpass çağrısı tamamlanmadığı için tip kesin bilinemez → Unknown (4)
+                paymentMarked = true;
+                try {
+                    const failureMasterpassOrderId = errorResponse?.exception?.retrievalReferenceNumber
+                        || errorResponse?.result?.retrievalReferenceNumber
+                        || errorResponse?.retrievalReferenceNumber
+                        || '-';
+                    await markAsStarted({
+                        ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+                        paymentType: exports.PaymentType.Unknown,
+                        paymentStatus: 'FAILED',
+                        masterpassOrderId: failureMasterpassOrderId,
+                        ...(errorResponse && typeof errorResponse === 'object' && {
+                            masterpassResponse: {
+                                statusCode: errorStatusCode || errorResponse?.statusCode || 0,
+                                response: errorResponse,
+                            },
+                        }),
+                        responseCode: failureErrorCode,
+                    });
+                }
+                catch (markError) {
+                    // markAsStarted hatası ödeme akışını durdurmaz
+                }
+                return createFailedResponse('MASTERPASS', errorResponse?.exception?.message || errorResponse?.message || 'Masterpass registerAndPurchase failed', failureErrorCode, {
                     httpStatus: errorStatusCode,
                     responseCode: errorResponse?.exception?.code || String(errorStatusCode),
                     raw: errorResponse,
@@ -7237,17 +7387,19 @@
                 }
                 description = SDK_MESSAGES.THREE_D_REQUIRED;
                 // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+                // url3dSuccess / url3dFail'e de MasterpassReturnQueryString eklenir (initPayment ile aynı)
                 const session = getMasterpassSession();
                 window.FlowDirectable = {
                     uri: mpResponse?.contentLocation || '',
                     token: mpResult?.token || session?.masterpassToken,
                     url3d: threeDAddress,
-                    url3dSuccess: mpResult?.url3dSuccess,
-                    url3dFail: mpResult?.url3dFail,
+                    url3dSuccess: appendMasterpassReturnQueryString(mpResult?.url3dSuccess, paymentInitData.masterpassReturnQueryString),
+                    url3dFail: appendMasterpassReturnQueryString(mpResult?.url3dFail, paymentInitData.masterpassReturnQueryString),
                 };
             }
             else {
                 paymentStatus = 'FAILED';
+                paymentType = exports.PaymentType.Unknown;
                 const mappedError = mapMasterpassError(mpResponse);
                 if (mappedError) {
                     description = mappedError.message;
@@ -7270,15 +7422,19 @@
                 },
             });
             if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-                setPendingPaymentOtp({
-                    ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                     ...(masterpassOrderId && { masterpassOrderId }),
-                });
+                    ...(paymentInitData.masterpassReturnQueryString && { masterpassReturnQueryString: paymentInitData.masterpassReturnQueryString }),
+                    sessionId: resolvedSessionId,
+                    successUrl: params.paymentDetail.successUrl,
+                    failUrl: params.paymentDetail.failUrl,
+                }));
             }
             else {
                 setPendingPaymentOtp(null);
             }
             // markAsStarted çağrısı
+            paymentMarked = true;
             try {
                 await markAsStarted({
                     ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
@@ -7328,6 +7484,22 @@
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            // Paywall backend'e FAILED bildirimi gönder (initPayment ile aynı)
+            // Sonuç mark'ı zaten atıldıysa tekrar atılmaz (FAILED ile ezilmesin)
+            if (!paymentMarked) {
+                try {
+                    await markAsStarted({
+                        ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+                        paymentType: exports.PaymentType.Unknown,
+                        paymentStatus: 'FAILED',
+                        masterpassOrderId: '-',
+                        responseCode: 'SDK_ERROR',
+                    });
+                }
+                catch (markError) {
+                    // markAsStarted hatası ödeme akışını durdurmaz
+                }
+            }
             return createFailedResponse('MASTERPASS', getMessage('PAYMENT_INIT_FAILED_WITH_ERROR', errorMessage), 'SDK_ERROR', {
                 responseCode: 'SDK_ERROR',
                 raw: error,
@@ -8188,7 +8360,7 @@
                 return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CVV, 'MISSING_CVV');
             }
             if (!/^\d{3,4}$/.test(params.cvv)) {
-                return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cvv), 'INVALID_CVV_FORMAT');
+                return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
             }
             if (!params.requestReferenceNumber || params.requestReferenceNumber.trim() === '') {
                 return createFailedResponse('SDK', SDK_MESSAGES.MISSING_REQUEST_REFERENCE_NUMBER, 'MISSING_REQUEST_REFERENCE_NUMBER');
@@ -8360,6 +8532,9 @@
                 const otpToken = mpResult?.token || mpResponse?.token;
                 if (otpToken)
                     setOtpFlowToken(otpToken);
+                // Yeni OTP akışı kart ekleme için: bekleyen ödeme OTP'si artık geçerli değil,
+                // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+                setPendingPaymentOtp(null);
                 const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
                 const description = SDK_MESSAGES.BANK_OTP_REQUIRED;
                 const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
@@ -8383,6 +8558,9 @@
                 const otpToken = mpResult?.token || mpResponse?.token;
                 if (otpToken)
                     setOtpFlowToken(otpToken);
+                // Yeni OTP akışı kart ekleme için: bekleyen ödeme OTP'si artık geçerli değil,
+                // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+                setPendingPaymentOtp(null);
                 const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
                 const description = SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
                 const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
@@ -8411,6 +8589,7 @@
                     ...(sessionId && { sessionId }),
                     token: mpResult?.token,
                     ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+                    ...(url3d && { redirectUrl: url3d }),
                 }, {
                     httpStatus: statusCode || 202,
                     responseCode: responseCode,
@@ -8634,6 +8813,9 @@
                 const otpToken = mpResult?.token || mpResponse?.token;
                 if (otpToken)
                     setOtpFlowToken(otpToken);
+                // Yeni OTP akışı merchant link için: bekleyen ödeme OTP'si artık geçerli değil,
+                // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+                setPendingPaymentOtp(null);
                 const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'MASTERPASS_OTP', SDK_MESSAGES.MASTERPASS_OTP_REQUIRED, {
                     ...(otpToken && { token: otpToken }),
                 }, {
@@ -8653,6 +8835,9 @@
                 const otpToken = mpResult?.token || mpResponse?.token;
                 if (otpToken)
                     setOtpFlowToken(otpToken);
+                // Yeni OTP akışı merchant link için: bekleyen ödeme OTP'si artık geçerli değil,
+                // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+                setPendingPaymentOtp(null);
                 const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'BANK_OTP', SDK_MESSAGES.BANK_OTP_REQUIRED, {
                     ...(otpToken && { token: otpToken }),
                 }, {
@@ -8899,6 +9084,73 @@
                     stepName: 'normalized-sdk-response',
                     normalizedSdkResponse: actionRequiredResponse,
                 });
+                return actionRequiredResponse;
+            }
+            else if (responseCode === '5010') {
+                // ACTION_REQUIRED: OTP sonrası 3D Secure doğrulama gerekiyor
+                // payment.init / registerAndPurchase ile aynı: url3d / url3dSuccess / url3dFail'e MasterpassReturnQueryString eklenir
+                setOtpFlowToken(null);
+                const threeDToken = mpResult?.token || mpResponse?.token;
+                const pendingPaymentOtp = getPendingPaymentOtp();
+                const masterpassReturnQueryString = pendingPaymentOtp?.masterpassReturnQueryString;
+                const baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
+                const threeDAddress = appendMasterpassReturnQueryString(baseUrl3d, masterpassReturnQueryString);
+                const finalUrl3dSuccess = appendMasterpassReturnQueryString(mpResult?.url3dSuccess || mpResponse?.url3dSuccess, masterpassReturnQueryString);
+                const finalUrl3dFail = appendMasterpassReturnQueryString(mpResult?.url3dFail || mpResponse?.url3dFail, masterpassReturnQueryString);
+                const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber
+                    || mpResponse?.retrievalReferenceNumber
+                    || pendingPaymentOtp?.masterpassOrderId;
+                // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+                window.FlowDirectable = {
+                    uri: mpResponse?.contentLocation || '',
+                    token: threeDToken || getMasterpassSession()?.masterpassToken,
+                    url3d: threeDAddress,
+                    url3dSuccess: finalUrl3dSuccess,
+                    url3dFail: finalUrl3dFail,
+                };
+                const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', '3D', SDK_MESSAGES.THREE_D_REQUIRED, {
+                    isVerified: false,
+                    ...(threeDToken && { token: threeDToken }),
+                    ...(mpResult?.cardUniqueNumber && { cardUniqueNumber: mpResult.cardUniqueNumber }),
+                    ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+                    ...(threeDAddress && { redirectUrl: threeDAddress }),
+                    ...(finalUrl3dSuccess && { url3dSuccess: finalUrl3dSuccess }),
+                    ...(finalUrl3dFail && { url3dFail: finalUrl3dFail }),
+                    ...(pendingPaymentOtp?.sessionId && { sessionId: pendingPaymentOtp.sessionId }),
+                    ...(pendingPaymentOtp?.successUrl && { successUrl: pendingPaymentOtp.successUrl }),
+                    ...(pendingPaymentOtp?.failUrl && { failUrl: pendingPaymentOtp.failUrl }),
+                    ...(pendingPaymentOtp?.paymentId !== undefined && { paymentId: pendingPaymentOtp.paymentId }),
+                    ...(pendingPaymentOtp?.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+                    ...(pendingPaymentOtp?.activityId !== undefined && { activityId: pendingPaymentOtp.activityId }),
+                    ...(pendingPaymentOtp?.uniqueCode && { uniqueCode: pendingPaymentOtp.uniqueCode }),
+                    ...(pendingPaymentOtp?.merchantUniqueCode && { merchantUniqueCode: pendingPaymentOtp.merchantUniqueCode }),
+                }, {
+                    httpStatus: statusCode || 202,
+                    responseCode: responseCode,
+                    ...(config.logLevel === 'debug' && { raw: mpResponse }),
+                });
+                logDebugFlow(config, {
+                    functionName: 'verifyOtp',
+                    stepName: 'normalized-sdk-response',
+                    normalizedSdkResponse: actionRequiredResponse,
+                });
+                if (pendingPaymentOtp) {
+                    try {
+                        await markPaymentAfterOtpVerifyThreeD({
+                            ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+                            ...(retrievalReferenceNumber && { masterpassOrderId: retrievalReferenceNumber }),
+                            ...(threeDAddress && { threeDAddress }),
+                            masterpassResponse: {
+                                statusCode: statusCode || 202,
+                                response: mpResponse,
+                            },
+                        });
+                    }
+                    catch (markError) {
+                        // mark hatası OTP verify sonucunu durdurmaz
+                    }
+                    setPendingPaymentOtp(null);
+                }
                 return actionRequiredResponse;
             }
             else {
@@ -10195,13 +10447,36 @@
      * }
      */
 
-        // Paywall ödeme orkestrasyon sistemi için JavaScript SDK
-        // Masterpass SDK bundle içine gömülüdür
-    const InternalService = {
-            CardTokenization: (async () => {
-                throw new Error('InternalService.CardTokenization is not implemented yet.');
-            }),
+    // Paywall ödeme orkestrasyon sistemi için JavaScript SDK
+    // Masterpass SDK bundle içine gömülüdür
+    /**
+     * Public wrapper guard'ları için FAILED response.
+     *
+     * - `errorCode` internal response'larla aynı şekilde üst seviyede döner.
+     * - `providerMeta` geriye uyumluluk için üst seviyede kalır, ayrıca internal
+     *   response'larla aynı yerde (`data.providerMeta`) de döner.
+     */
+    function createGuardFailedResponse(message, errorCode) {
+        const providerMeta = {
+            provider: 'SDK',
+            httpStatus: 0,
+            responseCode: errorCode,
         };
+        return {
+            success: false,
+            status: 'FAILED',
+            source: 'SDK',
+            message,
+            errorCode,
+            providerMeta,
+            data: { providerMeta },
+        };
+    }
+    const InternalService = {
+        CardTokenization: (async () => {
+            throw new Error('InternalService.CardTokenization is not implemented yet.');
+        }),
+    };
     // Masked payment init işlemi (DEPRECATED)
     async function initMaskedPaymentInternal(initParams, config) {
         try {
@@ -10680,8 +10955,8 @@
              * ```
              */
             initWithRegisteredCard: async (params) => {
-                // SDK lifecycle guard - EN BAŞTA kontrol
-                assertSdkInitialized();
+                // SDK lifecycle guard internal katmanda (payment.init): init edilmemişse
+                // FAILED (SDK_NOT_INITIALIZED) döner ve aşağıda errorCode ile birlikte throw edilir
                 // Kayıtlı kart için payment.init'i PaymentSource.REGISTERED_CARD ile çağır
                 const response = await initPayment({
                     ...(params.sessionId && { sessionId: params.sessionId }),
@@ -10702,8 +10977,15 @@
                     products: params.products,
                 });
                 // SdkResponse'dan data'yı extract et
+                // Geriye uyumluluk: bu fonksiyon hata durumunda throw eder.
+                // Merchant'ın hata kodunu görebilmesi için errorCode ve tam SdkResponse hataya eklenir.
                 if (!response.success || !response.data) {
-                    throw new Error(response.message || 'Payment initialization failed');
+                    const error = new Error(response.message || 'Payment initialization failed');
+                    if (response.errorCode) {
+                        error.errorCode = response.errorCode;
+                    }
+                    error.response = response;
+                    throw error;
                 }
                 return response.data;
             },
@@ -10716,8 +10998,7 @@
              */
             initMasterpassPayment: initPayment, // Deprecated, use init() instead
             registerAndPurchase: async (params) => {
-                // SDK lifecycle guard - EN BAŞTA kontrol
-                assertSdkInitialized();
+                // SDK lifecycle guard internal katmanda: init edilmemişse throw yerine FAILED (SDK_NOT_INITIALIZED) döner
                 return await registerAndPurchase(params);
             },
             start: startUnifiedPayment,
@@ -10805,6 +11086,7 @@
                             status: 'FAILED',
                             source: 'SDK',
                             message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before provider init.',
+                            errorCode: 'SDK_NOT_INITIALIZED',
                             data: {
                                 masterpassSdkInitialized: false,
                             },
@@ -10817,6 +11099,7 @@
                             status: 'FAILED',
                             source: 'SDK',
                             message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before provider init.',
+                            errorCode: 'SESSION_NOT_STARTED',
                             data: {
                                 masterpassSdkInitialized: false,
                             },
@@ -10830,19 +11113,21 @@
                             status: 'FAILED',
                             source: 'SDK',
                             message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
+                            errorCode: 'MISSING_TOKEN',
                             data: {
                                 masterpassSdkInitialized: false,
                             },
                         };
                     }
-                    const masterpassToken = getMasterpassToken();
-                    const masterpassMerchantId = getMasterpassMerchantId();
+                    const masterpassToken = peekMasterpassToken();
+                    const masterpassMerchantId = peekMasterpassMerchantId();
                     if (!masterpassToken || !masterpassMerchantId) {
                         return {
                             success: false,
                             status: 'FAILED',
                             source: 'SDK',
                             message: 'MasterpassToken or MasterpassMerchantId not found in session state. Make sure session was started successfully.',
+                            errorCode: 'MISSING_MERCHANT_ID',
                             data: {
                                 masterpassSdkInitialized: false,
                             },
@@ -10931,60 +11216,20 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before addCard.',
-                            providerMeta: {
-                                provider: 'SDK',
-                                httpStatus: 0,
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before addCard.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before addCard.',
-                            providerMeta: {
-                                provider: 'SDK',
-                                httpStatus: 0,
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before addCard.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                provider: 'SDK',
-                                httpStatus: 0,
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before addCard.',
-                            providerMeta: {
-                                provider: 'SDK',
-                                httpStatus: 0,
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before addCard.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.addCard(params);
@@ -11033,52 +11278,20 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before linkMerchant.',
-                            providerMeta: {
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before linkMerchant.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before linkMerchant.',
-                            providerMeta: {
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before linkMerchant.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before linkMerchant.',
-                            providerMeta: {
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before linkMerchant.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.linkMerchant(params);
@@ -11119,52 +11332,20 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before verifyOtp.',
-                            providerMeta: {
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before verifyOtp.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before verifyOtp.',
-                            providerMeta: {
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before verifyOtp.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before verifyOtp.',
-                            providerMeta: {
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before verifyOtp.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.verifyOtp(params);
@@ -11206,52 +11387,20 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before resendOtp.',
-                            providerMeta: {
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before resendOtp.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before resendOtp.',
-                            providerMeta: {
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before resendOtp.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before resendOtp.',
-                            providerMeta: {
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before resendOtp.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.resendOtp();
@@ -11302,64 +11451,24 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before getCardList.',
-                            providerMeta: {
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before getCardList.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before getCardList.',
-                            providerMeta: {
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before getCardList.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before getCardList.',
-                            providerMeta: {
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before getCardList.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Guard: userId zorunlu
                     if (!params.userId || params.userId.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'userId is required for Masterpass account access',
-                            providerMeta: {
-                                responseCode: 'MISSING_USER_ID',
-                            },
-                        };
+                        return createGuardFailedResponse('userId is required for Masterpass account access', 'MISSING_USER_ID');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.getCardList(params);
@@ -11403,52 +11512,20 @@
                     // EXTERNAL API: Sadece guard + delegation
                     // Guard: SDK core init kontrolü
                     if (!isSdkInitialized()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before deleteCard.',
-                            providerMeta: {
-                                responseCode: 'SDK_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before deleteCard.', 'SDK_NOT_INITIALIZED');
                     }
                     // Guard: Session başlatılmış mı?
                     if (!hasMasterpassSession()) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before deleteCard.',
-                            providerMeta: {
-                                responseCode: 'SESSION_NOT_STARTED',
-                            },
-                        };
+                        return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before deleteCard.', 'SESSION_NOT_STARTED');
                     }
                     // Guard: Session state'inde MasterpassToken var mı?
-                    const masterpassToken = getMasterpassToken();
+                    const masterpassToken = peekMasterpassToken();
                     if (!masterpassToken || masterpassToken.trim() === '') {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-                            providerMeta: {
-                                responseCode: 'MISSING_TOKEN',
-                            },
-                        };
+                        return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
                     }
                     // Guard: Masterpass provider init edilmiş mi?
                     if (!isProviderInitialized('masterpass')) {
-                        return {
-                            success: false,
-                            status: 'FAILED',
-                            source: 'SDK',
-                            message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before deleteCard.',
-                            providerMeta: {
-                                responseCode: 'PROVIDER_NOT_INITIALIZED',
-                            },
-                        };
+                        return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before deleteCard.', 'PROVIDER_NOT_INITIALIZED');
                     }
                     // Delegation: Internal implementation'ı çağır
                     return _internal.providers.masterpass.deleteCard(params);

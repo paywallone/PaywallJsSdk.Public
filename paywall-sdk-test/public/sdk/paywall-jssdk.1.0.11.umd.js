@@ -1,7 +1,7 @@
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
-    typeof define === 'function' && define.amd ? define(['exports'], factory) :
-      (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.PaywallSDK = {}));
+      typeof define === 'function' && define.amd ? define(['exports'], factory) :
+          (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.PaywallSDK = {}));
 })(this, (function (exports) { 'use strict';
 
   function commonjsRequire(path) {
@@ -63,7 +63,7 @@
     const config = ENVIRONMENT_CONFIG[environment];
     if (!config) {
       throw new Error(`Invalid environment: ${environment}. ` +
-        `Must be one of: ${Object.keys(ENVIRONMENT_CONFIG).join(', ')}`);
+          `Must be one of: ${Object.keys(ENVIRONMENT_CONFIG).join(', ')}`);
     }
     return {
       environment,
@@ -125,8 +125,8 @@
     // örn: 2026-09-01T13:39:27.9870283+03:00
     const normalized = trimmed.replace(/(\.\d{3})\d+(?=(Z|[+-]\d{2}:?\d{2})?$)/i, '$1');
     const withTimezone = hasExplicitTimezone(normalized)
-      ? normalized
-      : `${normalized}${ISTANBUL_OFFSET}`;
+        ? normalized
+        : `${normalized}${ISTANBUL_OFFSET}`;
     return new Date(withTimezone).getTime();
   }
   /**
@@ -324,6 +324,22 @@
       throw new Error('Masterpass token not initialized. Create session first.');
     }
     return internalState.masterpassToken;
+  }
+  /**
+   * Masterpass token'ı throw etmeden döner (guard kontrolleri için).
+   *
+   * @returns string | null - token yoksa null
+   */
+  function peekMasterpassToken() {
+    return internalState.masterpassToken || null;
+  }
+  /**
+   * Masterpass merchant ID'yi throw etmeden döner (guard kontrolleri için).
+   *
+   * @returns string | null - merchantId yoksa null
+   */
+  function peekMasterpassMerchantId() {
+    return internalState.masterpassMerchantId || null;
   }
   /**
    * OTP akış token'ını saklar (5001/5008 response'taki result.token).
@@ -553,8 +569,8 @@
   function createSuccessResponse(source, data, message, providerMeta) {
     // providerMeta varsa data içine ekle
     const finalData = providerMeta
-      ? { ...data, providerMeta }
-      : data;
+        ? { ...data, providerMeta }
+        : data;
     return {
       success: true,
       status: 'SUCCESS',
@@ -570,8 +586,8 @@
   function createFailedResponse(source, message, errorCode, providerMeta, additionalData) {
     // providerMeta varsa data içine ekle
     const finalData = providerMeta
-      ? { providerMeta, ...(additionalData || {}) }
-      : additionalData;
+        ? { providerMeta, ...(additionalData || {}) }
+        : additionalData;
     return {
       success: false,
       status: 'FAILED',
@@ -588,8 +604,8 @@
   function createActionRequiredResponse(source, actionType, message, data, providerMeta, actionHint) {
     // providerMeta varsa data içine ekle
     const finalData = providerMeta
-      ? { ...data, providerMeta }
-      : data;
+        ? { ...data, providerMeta }
+        : data;
     return {
       success: true,
       status: 'ACTION_REQUIRED',
@@ -659,7 +675,7 @@
    */
   function isBuffer(val) {
     return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
-      && isFunction$1(val.constructor.isBuffer) && val.constructor.isBuffer(val);
+        && isFunction$1(val.constructor.isBuffer) && val.constructor.isBuffer(val);
   }
 
   /**
@@ -824,13 +840,13 @@
   const isFormData = (thing) => {
     let kind;
     return thing && (
-      (typeof FormData === 'function' && thing instanceof FormData) || (
-        isFunction$1(thing.append) && (
-          (kind = kindOf(thing)) === 'formdata' ||
-          // detect form-data instance
-          (kind === 'object' && isFunction$1(thing.toString) && thing.toString() === '[object FormData]')
+        (typeof FormData === 'function' && thing instanceof FormData) || (
+            isFunction$1(thing.append) && (
+                (kind = kindOf(thing)) === 'formdata' ||
+                // detect form-data instance
+                (kind === 'object' && isFunction$1(thing.toString) && thing.toString() === '[object FormData]')
+            )
         )
-      )
     )
   };
 
@@ -853,7 +869,7 @@
    * @returns {String} The String freed of excess whitespace
    */
   const trim = (str) => str.trim ?
-    str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+      str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
 
   /**
    * Iterate over an Array or an Object invoking a function for each item.
@@ -1109,13 +1125,13 @@
    *
    * @returns {Array}
    */
-    // eslint-disable-next-line func-names
-  const isTypedArray = (TypedArray => {
       // eslint-disable-next-line func-names
-      return thing => {
-        return TypedArray && thing instanceof TypedArray;
-      };
-    })(typeof Uint8Array !== 'undefined' && getPrototypeOf(Uint8Array));
+  const isTypedArray = (TypedArray => {
+        // eslint-disable-next-line func-names
+        return thing => {
+          return TypedArray && thing instanceof TypedArray;
+        };
+      })(typeof Uint8Array !== 'undefined' && getPrototypeOf(Uint8Array));
 
   /**
    * For each entry in the object, call the function with the key and value.
@@ -1162,9 +1178,9 @@
 
   const toCamelCase = str => {
     return str.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g,
-      function replacer(m, p1, p2) {
-        return p1.toUpperCase() + p2;
-      }
+        function replacer(m, p1, p2) {
+          return p1.toUpperCase() + p2;
+        }
     );
   };
 
@@ -1297,7 +1313,7 @@
   const isAsyncFn = kindOfTest('AsyncFunction');
 
   const isThenable = (thing) =>
-    thing && (isObject(thing) || isFunction$1(thing)) && isFunction$1(thing.then) && isFunction$1(thing.catch);
+      thing && (isObject(thing) || isFunction$1(thing)) && isFunction$1(thing.then) && isFunction$1(thing.catch);
 
   // original code
   // https://github.com/DigitalBrainJS/AxiosPromise/blob/16deab13710ec09779922131f3fa5954320f83ab/lib/utils.js#L11-L34
@@ -1320,12 +1336,12 @@
       }
     })(`axios@${Math.random()}`, []) : (cb) => setTimeout(cb);
   })(
-    typeof setImmediate === 'function',
-    isFunction$1(_global.postMessage)
+      typeof setImmediate === 'function',
+      isFunction$1(_global.postMessage)
   );
 
   const asap = typeof queueMicrotask !== 'undefined' ?
-    queueMicrotask.bind(_global) : ( typeof process !== 'undefined' && process.nextTick || _setImmediate);
+      queueMicrotask.bind(_global) : ( typeof process !== 'undefined' && process.nextTick || _setImmediate);
 
   // *********************
 
@@ -1651,17 +1667,17 @@
           // eslint-disable-next-line no-param-reassign
           value = JSON.stringify(value);
         } else if (
-          (utils$1.isArray(value) && isFlatArray(value)) ||
-          ((utils$1.isFileList(value) || utils$1.endsWith(key, '[]')) && (arr = utils$1.toArray(value))
-          )) {
+            (utils$1.isArray(value) && isFlatArray(value)) ||
+            ((utils$1.isFileList(value) || utils$1.endsWith(key, '[]')) && (arr = utils$1.toArray(value))
+            )) {
           // eslint-disable-next-line no-param-reassign
           key = removeBrackets(key);
 
           arr.forEach(function each(el, index) {
             !(utils$1.isUndefined(el) || el === null) && formData.append(
-              // eslint-disable-next-line no-nested-ternary
-              indexes === true ? renderKey([key], index, dots) : (indexes === null ? key : key + '[]'),
-              convertValue(el)
+                // eslint-disable-next-line no-nested-ternary
+                indexes === true ? renderKey([key], index, dots) : (indexes === null ? key : key + '[]'),
+                convertValue(el)
             );
           });
           return false;
@@ -1696,7 +1712,7 @@
 
       utils$1.forEach(value, function each(el, key) {
         const result = !(utils$1.isUndefined(el) || el === null) && visitor.call(
-          formData, el, utils$1.isString(key) ? key.trim() : key, path, exposedHelpers
+            formData, el, utils$1.isString(key) ? key.trim() : key, path, exposedHelpers
         );
 
         if (result === true) {
@@ -1816,8 +1832,8 @@
       serializedParams = serializeFn(params, options);
     } else {
       serializedParams = utils$1.isURLSearchParams(params) ?
-        params.toString() :
-        new AxiosURLSearchParams(params, options).toString(_encode);
+          params.toString() :
+          new AxiosURLSearchParams(params, options).toString(_encode);
     }
 
     if (serializedParams) {
@@ -1942,7 +1958,7 @@
    * @returns {boolean}
    */
   const hasStandardBrowserEnv = hasBrowserEnv &&
-    (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
+      (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
 
   /**
    * Determine if we're running in a standard browser webWorker environment
@@ -1955,10 +1971,10 @@
    */
   const hasStandardBrowserWebWorkerEnv = (() => {
     return (
-      typeof WorkerGlobalScope !== 'undefined' &&
-      // eslint-disable-next-line no-undef
-      self instanceof WorkerGlobalScope &&
-      typeof self.importScripts === 'function'
+        typeof WorkerGlobalScope !== 'undefined' &&
+        // eslint-disable-next-line no-undef
+        self instanceof WorkerGlobalScope &&
+        typeof self.importScripts === 'function'
     );
   })();
 
@@ -2129,11 +2145,11 @@
       }
 
       if (utils$1.isArrayBuffer(data) ||
-        utils$1.isBuffer(data) ||
-        utils$1.isStream(data) ||
-        utils$1.isFile(data) ||
-        utils$1.isBlob(data) ||
-        utils$1.isReadableStream(data)
+          utils$1.isBuffer(data) ||
+          utils$1.isStream(data) ||
+          utils$1.isFile(data) ||
+          utils$1.isBlob(data) ||
+          utils$1.isReadableStream(data)
       ) {
         return data;
       }
@@ -2156,9 +2172,9 @@
           const _FormData = this.env && this.env.FormData;
 
           return toFormData$1(
-            isFileList ? {'files[]': data} : data,
-            _FormData && new _FormData(),
-            this.formSerializer
+              isFileList ? {'files[]': data} : data,
+              _FormData && new _FormData(),
+              this.formSerializer
           );
         }
       }
@@ -2334,9 +2350,9 @@
 
   function formatHeader(header) {
     return header.trim()
-      .toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
-        return char.toUpperCase() + str;
-      });
+        .toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+          return char.toUpperCase() + str;
+        });
   }
 
   function buildAccessors(obj, header) {
@@ -2375,7 +2391,7 @@
       }
 
       const setHeaders = (headers, _rewrite) =>
-        utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+          utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
 
       if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
         setHeaders(header, valueOrRewrite);
@@ -2389,7 +2405,7 @@
           }
 
           obj[key = entry[0]] = (dest = obj[key]) ?
-            (utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]]) : entry[1];
+              (utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]]) : entry[1];
         }
 
         setHeaders(obj, valueOrRewrite);
@@ -2653,11 +2669,11 @@
       resolve(response);
     } else {
       reject(new AxiosError$1(
-        'Request failed with status code ' + response.status,
-        [AxiosError$1.ERR_BAD_REQUEST, AxiosError$1.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
-        response.config,
-        response.request,
-        response
+          'Request failed with status code ' + response.status,
+          [AxiosError$1.ERR_BAD_REQUEST, AxiosError$1.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
+          response.config,
+          response.request,
+          response
       ));
     }
   }
@@ -2807,64 +2823,64 @@
     url = new URL(url, platform.origin);
 
     return (
-      origin.protocol === url.protocol &&
-      origin.host === url.host &&
-      (isMSIE || origin.port === url.port)
+        origin.protocol === url.protocol &&
+        origin.host === url.host &&
+        (isMSIE || origin.port === url.port)
     );
   })(
-    new URL(platform.origin),
-    platform.navigator && /(msie|trident)/i.test(platform.navigator.userAgent)
+      new URL(platform.origin),
+      platform.navigator && /(msie|trident)/i.test(platform.navigator.userAgent)
   ) : () => true;
 
   var cookies = platform.hasStandardBrowserEnv ?
 
-    // Standard browser envs support document.cookie
-    {
-      write(name, value, expires, path, domain, secure, sameSite) {
-        if (typeof document === 'undefined') return;
+      // Standard browser envs support document.cookie
+      {
+        write(name, value, expires, path, domain, secure, sameSite) {
+          if (typeof document === 'undefined') return;
 
-        const cookie = [`${name}=${encodeURIComponent(value)}`];
+          const cookie = [`${name}=${encodeURIComponent(value)}`];
 
-        if (utils$1.isNumber(expires)) {
-          cookie.push(`expires=${new Date(expires).toUTCString()}`);
-        }
-        if (utils$1.isString(path)) {
-          cookie.push(`path=${path}`);
-        }
-        if (utils$1.isString(domain)) {
-          cookie.push(`domain=${domain}`);
-        }
-        if (secure === true) {
-          cookie.push('secure');
-        }
-        if (utils$1.isString(sameSite)) {
-          cookie.push(`SameSite=${sameSite}`);
-        }
+          if (utils$1.isNumber(expires)) {
+            cookie.push(`expires=${new Date(expires).toUTCString()}`);
+          }
+          if (utils$1.isString(path)) {
+            cookie.push(`path=${path}`);
+          }
+          if (utils$1.isString(domain)) {
+            cookie.push(`domain=${domain}`);
+          }
+          if (secure === true) {
+            cookie.push('secure');
+          }
+          if (utils$1.isString(sameSite)) {
+            cookie.push(`SameSite=${sameSite}`);
+          }
 
-        document.cookie = cookie.join('; ');
-      },
+          document.cookie = cookie.join('; ');
+        },
 
-      read(name) {
-        if (typeof document === 'undefined') return null;
-        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-        return match ? decodeURIComponent(match[1]) : null;
-      },
+        read(name) {
+          if (typeof document === 'undefined') return null;
+          const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+          return match ? decodeURIComponent(match[1]) : null;
+        },
 
-      remove(name) {
-        this.write(name, '', Date.now() - 86400000, '/');
+        remove(name) {
+          this.write(name, '', Date.now() - 86400000, '/');
+        }
       }
-    }
 
-    :
+      :
 
-    // Non-standard browser env (web workers, react-native) lack needed support.
-    {
-      write() {},
-      read() {
-        return null;
-      },
-      remove() {}
-    };
+      // Non-standard browser env (web workers, react-native) lack needed support.
+      {
+        write() {},
+        read() {
+          return null;
+        },
+        remove() {}
+      };
 
   /**
    * Determines whether the specified URL is absolute
@@ -2890,8 +2906,8 @@
    */
   function combineURLs(baseURL, relativeURL) {
     return relativeURL
-      ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
-      : baseURL;
+        ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+        : baseURL;
   }
 
   /**
@@ -3026,7 +3042,7 @@
     // HTTP basic authentication
     if (auth) {
       headers.set('Authorization', 'Basic ' +
-        btoa((auth.username || '') + ':' + (auth.password ? unescape(encodeURIComponent(auth.password)) : ''))
+          btoa((auth.username || '') + ':' + (auth.password ? unescape(encodeURIComponent(auth.password)) : ''))
       );
     }
 
@@ -3100,10 +3116,10 @@
         }
         // Prepare the response
         const responseHeaders = AxiosHeaders$1.from(
-          'getAllResponseHeaders' in request && request.getAllResponseHeaders()
+            'getAllResponseHeaders' in request && request.getAllResponseHeaders()
         );
         const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
-          request.responseText : request.response;
+            request.responseText : request.response;
         const response = {
           data: responseData,
           status: request.status,
@@ -3181,10 +3197,10 @@
           timeoutErrorMessage = _config.timeoutErrorMessage;
         }
         reject(new AxiosError$1(
-          timeoutErrorMessage,
-          transitional.clarifyTimeoutError ? AxiosError$1.ETIMEDOUT : AxiosError$1.ECONNABORTED,
-          config,
-          request));
+            timeoutErrorMessage,
+            transitional.clarifyTimeoutError ? AxiosError$1.ETIMEDOUT : AxiosError$1.ECONNABORTED,
+            config,
+            request));
 
         // Clean up request
         request = null;
@@ -3424,8 +3440,8 @@
     const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream$1);
 
     const encodeText = isFetchSupported && (typeof TextEncoder === 'function' ?
-        ((encoder) => (str) => encoder.encode(str))(new TextEncoder()) :
-        async (str) => new Uint8Array(await new Request(str).arrayBuffer())
+            ((encoder) => (str) => encoder.encode(str))(new TextEncoder()) :
+            async (str) => new Uint8Array(await new Request(str).arrayBuffer())
     );
 
     const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
@@ -3444,7 +3460,7 @@
     });
 
     const supportsResponseStream = isResponseSupported && isReadableStreamSupported &&
-      test(() => utils$1.isReadableStream(new Response('').body));
+        test(() => utils$1.isReadableStream(new Response('').body));
 
     const resolvers = {
       stream: supportsResponseStream && ((res) => res.body)
@@ -3532,8 +3548,8 @@
 
       try {
         if (
-          onUploadProgress && supportsRequestStream && method !== 'get' && method !== 'head' &&
-          (requestContentLength = await resolveBodyLength(headers, data)) !== 0
+            onUploadProgress && supportsRequestStream && method !== 'get' && method !== 'head' &&
+            (requestContentLength = await resolveBodyLength(headers, data)) !== 0
         ) {
           let _request = new Request(url, {
             method: 'POST',
@@ -3549,8 +3565,8 @@
 
           if (_request.body) {
             const [onProgress, flush] = progressEventDecorator(
-              requestContentLength,
-              progressEventReducer(asyncDecorator(onUploadProgress))
+                requestContentLength,
+                progressEventReducer(asyncDecorator(onUploadProgress))
             );
 
             data = trackStream(_request.body, DEFAULT_CHUNK_SIZE, onProgress, flush);
@@ -3591,16 +3607,16 @@
           const responseContentLength = utils$1.toFiniteNumber(response.headers.get('content-length'));
 
           const [onProgress, flush] = onDownloadProgress && progressEventDecorator(
-            responseContentLength,
-            progressEventReducer(asyncDecorator(onDownloadProgress), true)
+              responseContentLength,
+              progressEventReducer(asyncDecorator(onDownloadProgress), true)
           ) || [];
 
           response = new Response(
-            trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
-              flush && flush();
-              unsubscribe && unsubscribe();
-            }),
-            options
+              trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+                flush && flush();
+                unsubscribe && unsubscribe();
+              }),
+              options
           );
         }
 
@@ -3625,10 +3641,10 @@
 
         if (err && err.name === 'TypeError' && /Load failed|fetch/i.test(err.message)) {
           throw Object.assign(
-            new AxiosError$1('Network Error', AxiosError$1.ERR_NETWORK, config, request),
-            {
-              cause: err.cause || err
-            }
+              new AxiosError$1('Network Error', AxiosError$1.ERR_NETWORK, config, request),
+              {
+                cause: err.cause || err
+              }
           )
         }
 
@@ -3647,7 +3663,7 @@
     ];
 
     let len = seeds.length, i = len,
-      seed, target, map = seedCache;
+        seed, target, map = seedCache;
 
     while (i--) {
       seed = seeds[i];
@@ -3750,17 +3766,17 @@
 
     if (!adapter) {
       const reasons = Object.entries(rejectedReasons)
-        .map(([id, state]) => `adapter ${id} ` +
-          (state === false ? 'is not supported by the environment' : 'is not available in the build')
-        );
+          .map(([id, state]) => `adapter ${id} ` +
+              (state === false ? 'is not supported by the environment' : 'is not available in the build')
+          );
 
       let s = length ?
-        (reasons.length > 1 ? 'since :\n' + reasons.map(renderReason).join('\n') : ' ' + renderReason(reasons[0])) :
-        'as no adapter specified';
+          (reasons.length > 1 ? 'since :\n' + reasons.map(renderReason).join('\n') : ' ' + renderReason(reasons[0])) :
+          'as no adapter specified';
 
       throw new AxiosError$1(
-        `There is no suitable adapter to dispatch the request ` + s,
-        'ERR_NOT_SUPPORT'
+          `There is no suitable adapter to dispatch the request ` + s,
+          'ERR_NOT_SUPPORT'
       );
     }
 
@@ -3815,8 +3831,8 @@
 
     // Transform request data
     config.data = transformData.call(
-      config,
-      config.transformRequest
+        config,
+        config.transformRequest
     );
 
     if (['post', 'put', 'patch'].indexOf(config.method) !== -1) {
@@ -3830,9 +3846,9 @@
 
       // Transform response data
       response.data = transformData.call(
-        config,
-        config.transformResponse,
-        response
+          config,
+          config.transformResponse,
+          response
       );
 
       response.headers = AxiosHeaders$1.from(response.headers);
@@ -3845,9 +3861,9 @@
         // Transform response data
         if (reason && reason.response) {
           reason.response.data = transformData.call(
-            config,
-            config.transformResponse,
-            reason.response
+              config,
+              config.transformResponse,
+              reason.response
           );
           reason.response.headers = AxiosHeaders$1.from(reason.response.headers);
         }
@@ -3888,8 +3904,8 @@
     return (value, opt, opts) => {
       if (validator === false) {
         throw new AxiosError$1(
-          formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
-          AxiosError$1.ERR_DEPRECATED
+            formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
+            AxiosError$1.ERR_DEPRECATED
         );
       }
 
@@ -3897,10 +3913,10 @@
         deprecatedWarnings[opt] = true;
         // eslint-disable-next-line no-console
         console.warn(
-          formatMessage(
-            opt,
-            ' has been deprecated since v' + version + ' and will be removed in the near future'
-          )
+            formatMessage(
+                opt,
+                ' has been deprecated since v' + version + ' and will be removed in the near future'
+            )
         );
       }
 
@@ -4059,15 +4075,15 @@
 
       // Flatten headers
       let contextHeaders = headers && utils$1.merge(
-        headers.common,
-        headers[config.method]
+          headers.common,
+          headers[config.method]
       );
 
       headers && utils$1.forEach(
-        ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
-        (method) => {
-          delete headers[method];
-        }
+          ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+          (method) => {
+            delete headers[method];
+          }
       );
 
       config.headers = AxiosHeaders$1.concat(contextHeaders, headers);
@@ -4679,10 +4695,10 @@
       sdk.paymentService.directPayment(masterpassParams, (err, response) => {
         if (err) {
           const is202 = err === 202
-            || err === '202'
-            || err?.statusCode === 202
-            || err?.response?.statusCode === 202
-            || (typeof err === 'object' && err !== null && 'statusCode' in err && err.statusCode === 202);
+              || err === '202'
+              || err?.statusCode === 202
+              || err?.response?.statusCode === 202
+              || (typeof err === 'object' && err !== null && 'statusCode' in err && err.statusCode === 202);
           if (is202) {
             // ⚠️ KRİTİK: 202 response'u normal response olarak resolve et
             // Eğer err direkt 202 ise, response callback'inde data olabilir
@@ -5302,7 +5318,8 @@
     MISSING_EXPIRY_DATE: 'Card expiry date is missing. Please provide in MMYY format (e.g., 1226).',
     INVALID_EXPIRY_DATE_FORMAT: (value) => `Card expiry date format is invalid. Entered value: "${value}". Please provide in MMYY format (e.g., 1226 - December 2026).`,
     MISSING_CVV: 'CVV code is missing. Please provide the 3 or 4 digit CVV code from the back of your card.',
-    INVALID_CVV_FORMAT: (value) => `CVV code format is invalid. Entered value: "${value}". Please provide a 3 or 4 digit CVV code.`,
+    // PCI-DSS: girilen CVV değeri mesaja YAZILMAZ (merchant mesajı loglayabilir)
+    INVALID_CVV_FORMAT: 'CVV code format is invalid. Please provide a 3 or 4 digit CVV code.',
     MISSING_REQUEST_REFERENCE_NUMBER: 'Request reference number is missing. Please provide a unique reference number.',
     // Card Operations - Errors
     INVALID_ACCOUNT_KEY: 'Account key (phone number or email) is invalid. Please provide a valid phone number or email address.',
@@ -5540,8 +5557,8 @@
     if (masked.expiryDate) {
       // Expiry date'i kısmen maskeler (sadece ay gösterilir, yıl maskelenir)
       masked.expiryDate = masked.expiryDate.length === 4
-        ? `${masked.expiryDate.slice(0, 2)}**`
-        : '****';
+          ? `${masked.expiryDate.slice(0, 2)}**`
+          : '****';
     }
     return masked;
   }
@@ -5671,7 +5688,10 @@
       timestamp: new Date().toISOString(),
     };
     // Mask sensitive data (cardNumber, cvv, token, etc.)
-    maskSensitiveData(fullEntry);
+    const maskedEntry = maskSensitiveData(fullEntry);
+    if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+      console.debug('[PaywallJsSdk]', maskedEntry);
+    }
   }
   /**
    * Masks sensitive data in debug logs.
@@ -5709,6 +5729,8 @@
       'authorization',
       'password',
       'pin',
+      'otpCode',
+      'expiryDate',
     ];
     const masked = Array.isArray(obj) ? [...obj] : { ...obj };
     for (const key in masked) {
@@ -5765,9 +5787,9 @@
   })(exports.PaymentFlowType || (exports.PaymentFlowType = {}));
   function mapMasterpassError(response) {
     const code = response?.exception?.code ||
-      response?.result?.responseCode ||
-      response?.responseCode ||
-      response?.statusCode;
+        response?.result?.responseCode ||
+        response?.responseCode ||
+        response?.statusCode;
     if (!code) {
       return null;
     }
@@ -6037,7 +6059,7 @@
    * - 3 (Finansallaştırma bekleniyor): SUCCESS + responseCode 0000 (ödeme veya OTP verify)
    */
   async function markAsStarted(params) {
-    getConfig();
+    const config = getConfig();
     try {
       const envConfig = getResolvedEnvironmentConfig();
       if (!envConfig) {
@@ -6052,26 +6074,26 @@
         const mpResult = mpResponse?.result || mpResponse;
         if (!actualResponseCode) {
           actualResponseCode = mpResponse?.result?.responseCode
-            || mpResult?.responseCode
-            || mpResponse?.responseCode;
+              || mpResult?.responseCode
+              || mpResponse?.responseCode;
         }
         // Öncelik sırası: mpResult.token > mpResponse.token > params.masterpassResponse.response.token
         masterpassPaymentToken = mpResult?.token
-          || mpResponse?.token
-          || params.masterpassResponse.response?.token
-          || undefined;
+            || mpResponse?.token
+            || params.masterpassResponse.response?.token
+            || undefined;
         if (params.paymentStatus === 'FAILED') {
           errorCode = mpResult?.responseCode
-            || mpResponse?.responseCode
-            || mpResponse?.statusCode?.toString()
-            || 'UNKNOWN';
+              || mpResponse?.responseCode
+              || mpResponse?.statusCode?.toString()
+              || 'UNKNOWN';
         }
         if (params.paymentStatus === 'FAILED') {
           errorMessage = mpResult?.description
-            || mpResponse?.description
-            || mpResult?.message
-            || mpResponse?.message
-            || 'Masterpass payment failed';
+              || mpResponse?.description
+              || mpResult?.message
+              || mpResponse?.message
+              || 'Masterpass payment failed';
         }
       }
       let paymentStatusValue;
@@ -6107,7 +6129,18 @@
       await httpPost(markUrl, requestBody);
     }
     catch (error) {
-      error instanceof Error ? error.message : String(error);
+      // Mark hatası ödeme akışını durdurmaz; debug modunda görünür olsun diye loglanır
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logDebugFlow(config, {
+        functionName: 'markAsStarted',
+        stepName: 'mark-failed',
+        metadata: {
+          error: errorMessage,
+          paymentType: params.paymentType,
+          paymentStatus: params.paymentStatus,
+          ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+        },
+      });
     }
   }
   /**
@@ -6123,6 +6156,48 @@
       ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
       responseCode: '0000',
     });
+  }
+  /**
+   * Ödeme OTP (5001/5008) sonrası verifyOtp 5010 (3D) dönerse mark atar.
+   * PaymentStatus=1 (Started), ThreeDAddress = MasterpassReturnQueryString eklenmiş url3d.
+   */
+  async function markPaymentAfterOtpVerifyThreeD(params) {
+    await markAsStarted({
+      ...(params.masterpassPaymentId && { masterpassPaymentId: params.masterpassPaymentId }),
+      paymentType: exports.PaymentType.ThreeDSecure,
+      paymentStatus: 'ACTION_REQUIRED',
+      ...(params.threeDAddress && { threeDAddress: params.threeDAddress }),
+      ...(params.masterpassOrderId && { masterpassOrderId: params.masterpassOrderId }),
+      ...(params.masterpassResponse && { masterpassResponse: params.masterpassResponse }),
+      responseCode: '5010',
+    });
+  }
+  /**
+   * Masterpass 3D URL'ine (url3d / url3dSuccess / url3dFail) Paywall'ın MasterpassReturnQueryString'ini ekler.
+   */
+  function appendMasterpassReturnQueryString(url, queryString) {
+    if (!url || !queryString) {
+      return url;
+    }
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${queryString.replace(/^[?&]/, '')}`;
+  }
+  /**
+   * Ödeme OTP (5001/5008) beklerken verifyOtp için saklanacak state'i oluşturur.
+   */
+  function createPendingPaymentOtp(paymentInitData, extras) {
+    return {
+      ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+      ...(extras.masterpassOrderId && { masterpassOrderId: extras.masterpassOrderId }),
+      ...(extras.masterpassReturnQueryString && { masterpassReturnQueryString: extras.masterpassReturnQueryString }),
+      ...(extras.sessionId && { sessionId: extras.sessionId }),
+      ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
+      ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
+      ...(paymentInitData.uniqueCode && { uniqueCode: paymentInitData.uniqueCode }),
+      ...(paymentInitData.merchantUniqueCode && { merchantUniqueCode: paymentInitData.merchantUniqueCode }),
+      ...(extras.successUrl && { successUrl: extras.successUrl }),
+      ...(extras.failUrl && { failUrl: extras.failUrl }),
+    };
   }
   /**
    * Masterpass SDK'yı çağırır.
@@ -6180,8 +6255,10 @@
   }
   // Payment init işlemi (POST /api/paywall/masterpass/by/sdk/payment/init)
   async function initPayment(params) {
-    // SDK lifecycle guard - EN BAŞTA kontrol
-    assertSdkInitialized();
+    // SDK lifecycle guard - EN BAŞTA kontrol (throw yerine FAILED döner)
+    if (!isSdkInitialized()) {
+      return createFailedResponse('SDK', SDK_MESSAGES.SDK_NOT_INITIALIZED, 'SDK_NOT_INITIALIZED');
+    }
     if (!isSessionValid()) {
       return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.SESSION_EXPIRED_ACTION_HINT });
     }
@@ -6190,7 +6267,12 @@
       return createFailedResponse('SDK', 'Masterpass session is invalid. MasterpassToken is missing. Please create a new session.', 'INVALID_SESSION');
     }
     if (!isMasterpassInitialized()) {
-      await ensureMasterpassInitialized();
+      try {
+        await ensureMasterpassInitialized();
+      }
+      catch (ensureError) {
+        return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
+      }
     }
     if (typeof window !== 'undefined') {
       const Masterpass = window.Masterpass;
@@ -6201,8 +6283,8 @@
     // Session ID SDK tarafından yönetilir: dahili (verify'dan gelen, gerektiğinde
     // yenilenen) session önceliklidir; yoksa merchant'ın verdiği değere düşülür.
     let resolvedSessionId = (session.sessionId && session.sessionId.trim() !== '')
-      ? session.sessionId
-      : (params.sessionId ?? '');
+        ? session.sessionId
+        : (params.sessionId ?? '');
     if (!resolvedSessionId || resolvedSessionId.trim() === '') {
       return createFailedResponse('SDK', SDK_MESSAGES.MISSING_SESSION_ID, 'MISSING_SESSION_ID');
     }
@@ -6267,7 +6349,7 @@
           return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CVV_MANUAL, 'MISSING_CVV');
         }
         if (!/^\d{3,4}$/.test(cardData.cvv)) {
-          return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', cardData.cvv), 'INVALID_CVV_FORMAT');
+          return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
         }
         const ownerNameCheck = cardData.cardHolderName || cardData.ownerName || card.ownerName;
         if (!ownerNameCheck || ownerNameCheck.trim() === '') {
@@ -6461,13 +6543,13 @@
           const mpResponse = masterpassResponse.response || masterpassResponse;
           mpResult = mpResponse?.result || mpResponse;
           responseCode = mpResponse?.result?.responseCode
-            || mpResult?.responseCode
-            || mpResponse?.responseCode
-            || '';
+              || mpResult?.responseCode
+              || mpResponse?.responseCode
+              || '';
           masterpassOrderId = mpResult?.retrievalReferenceNumber
-            || mpResult?.orderId
-            || mpResponse?.orderId
-            || mpResponse?.retrievalReferenceNumber;
+              || mpResult?.orderId
+              || mpResponse?.orderId
+              || mpResponse?.retrievalReferenceNumber;
           if (responseCode === '0000') {
             paymentStatus = 'SUCCESS';
             paymentType = exports.PaymentType.NonSecure;
@@ -6542,6 +6624,7 @@
           }
           else {
             paymentStatus = 'FAILED';
+            paymentType = exports.PaymentType.Unknown;
             const mappedError = mapMasterpassError(mpResponse);
             if (mappedError) {
               description = mappedError.message;
@@ -6568,10 +6651,13 @@
             },
           });
           if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-            setPendingPaymentOtp({
-              ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
               ...(masterpassOrderId && { masterpassOrderId }),
-            });
+              ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+              sessionId: resolvedSessionId,
+              successUrl: params.paymentDetail.successUrl,
+              failUrl: params.paymentDetail.failUrl,
+            }));
           }
           else {
             setPendingPaymentOtp(null);
@@ -6608,9 +6694,9 @@
             errorStatusCode = error.statusCode || masterpassResponse?.statusCode;
           }
           const is200Or202 = errorStatusCode === 200 || errorStatusCode === 202
-            || error === 200 || error === '200'
-            || error === 202 || error === '202'
-            || (typeof error === 'object' && error !== null && ('statusCode' in error && (error.statusCode === 200 || error.statusCode === 202)));
+              || error === 200 || error === '200'
+              || error === 202 || error === '202'
+              || (typeof error === 'object' && error !== null && ('statusCode' in error && (error.statusCode === 200 || error.statusCode === 202)));
           if (is200Or202) {
             let errorResponse;
             if (typeof error === 'number') {
@@ -6628,14 +6714,14 @@
             const mpResponse = errorResponse;
             const mpResult = mpResponse?.result || mpResponse;
             const responseCode = mpResponse?.result?.responseCode
-              || mpResult?.responseCode
-              || mpResponse?.responseCode
-              || 'UNKNOWN';
+                || mpResult?.responseCode
+                || mpResponse?.responseCode
+                || 'UNKNOWN';
             // retrievalReferenceNumber → masterpassOrderId
             const fallbackMasterpassOrderId = mpResult?.retrievalReferenceNumber
-              || mpResult?.orderId
-              || mpResponse?.orderId
-              || mpResponse?.retrievalReferenceNumber;
+                || mpResult?.orderId
+                || mpResponse?.orderId
+                || mpResponse?.retrievalReferenceNumber;
             // responseCode'a göre status belirle
             let fallbackStatus = 'FAILED';
             let fallbackActionType;
@@ -6673,12 +6759,23 @@
               fallbackPaymentType = exports.PaymentType.ThreeDSecure;
               fallbackDescription = mpResult?.description || mpResponse?.description || '3D Secure authentication required';
             }
+            else {
+              // Tanınmayan responseCode → FAILED, PaymentType bilinemez → Unknown (4)
+              fallbackPaymentType = exports.PaymentType.Unknown;
+            }
+            // 3D ise url3d'ye MasterpassReturnQueryString eklenir (normal akış ile aynı)
+            const fallbackThreeDAddress = fallbackActionType === '3D'
+                ? appendMasterpassReturnQueryString(mpResult?.url3d || mpResponse?.url3d, masterpassReturnQueryString)
+                : undefined;
             if (fallbackPaymentType) {
               if (fallbackStatus === 'ACTION_REQUIRED' && (fallbackActionType === 'BANK_OTP' || fallbackActionType === 'MASTERPASS_OTP')) {
-                setPendingPaymentOtp({
-                  ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+                setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
                   ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
-                });
+                  ...(masterpassReturnQueryString && { masterpassReturnQueryString }),
+                  sessionId: resolvedSessionId,
+                  successUrl: params.paymentDetail.successUrl,
+                  failUrl: params.paymentDetail.failUrl,
+                }));
               }
               else {
                 setPendingPaymentOtp(null);
@@ -6688,7 +6785,7 @@
                   ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
                   paymentType: fallbackPaymentType,
                   paymentStatus: fallbackStatus,
-                  ...(fallbackActionType === '3D' && mpResult?.url3d && { threeDAddress: mpResult.url3d }),
+                  ...(fallbackThreeDAddress && { threeDAddress: fallbackThreeDAddress }),
                   ...(fallbackMasterpassOrderId && { masterpassOrderId: fallbackMasterpassOrderId }),
                   masterpassResponse: {
                     statusCode: errorStatusCode || 200,
@@ -6715,7 +6812,7 @@
               ...(fallbackActionType === 'BANK_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
               ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.token && { token: mpResult.token }),
               ...(fallbackActionType === 'MASTERPASS_OTP' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
-              ...(fallbackActionType === '3D' && (mpResult?.url3d || mpResponse?.url3d) && { redirectUrl: mpResult?.url3d || mpResponse?.url3d }),
+              ...(fallbackThreeDAddress && { redirectUrl: fallbackThreeDAddress }),
               ...(fallbackActionType === '3D' && mpResult?.retrievalReferenceNumber && { retrievalReferenceNumber: mpResult.retrievalReferenceNumber }),
               ...(params.paymentDetail.successUrl && { successUrl: params.paymentDetail.successUrl }),
               ...(params.paymentDetail.failUrl && { failUrl: params.paymentDetail.failUrl }),
@@ -6770,9 +6867,9 @@
           // MasterpassOrderId: Mümkünse exception.retrievalReferenceNumber'dan al, yoksa '-' fallback
           try {
             const failureMasterpassOrderId = masterpassResponse?.exception?.retrievalReferenceNumber
-              || masterpassResponse?.result?.retrievalReferenceNumber
-              || masterpassResponse?.retrievalReferenceNumber
-              || '-';
+                || masterpassResponse?.result?.retrievalReferenceNumber
+                || masterpassResponse?.retrievalReferenceNumber
+                || '-';
             await markAsStarted({
               ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
               paymentType: exports.PaymentType.Unknown,
@@ -6869,13 +6966,13 @@
         stepName: 'merchant-response',
         normalizedSdkResponse: merchantResult,
         ...(merchantResult.actionType === 'BANK_OTP' || merchantResult.actionType === 'MASTERPASS_OTP'
-          ? {
-            metadata: {
-              note: 'OTP_REQUIRED - handled by merchant backend. SDK does NOT verify OTP.',
-              merchantResponsibility: 'Merchant must: 1) Show OTP UI, 2) Send OTP to merchant backend, 3) Merchant backend verifies OTP with Paywall backend',
-            },
-          }
-          : {}),
+            ? {
+              metadata: {
+                note: 'OTP_REQUIRED - handled by merchant backend. SDK does NOT verify OTP.',
+                merchantResponsibility: 'Merchant must: 1) Show OTP UI, 2) Send OTP to merchant backend, 3) Merchant backend verifies OTP with Paywall backend',
+              },
+            }
+            : {}),
       });
       if (paymentStatus === 'SUCCESS') {
         return createSuccessResponse('PAYWALL', merchantResult, description || SDK_MESSAGES.PAYMENT_INIT_SUCCESS, providerMeta);
@@ -6976,8 +7073,10 @@
    * ```
    */
   async function registerAndPurchase(params) {
-    // SDK lifecycle guard - EN BAŞTA kontrol
-    assertSdkInitialized();
+    // SDK lifecycle guard - EN BAŞTA kontrol (throw yerine FAILED döner)
+    if (!isSdkInitialized()) {
+      return createFailedResponse('SDK', SDK_MESSAGES.SDK_NOT_INITIALIZED, 'SDK_NOT_INITIALIZED');
+    }
     if (!isSessionValid()) {
       return createFailedResponse('SDK', SDK_MESSAGES.SESSION_EXPIRED, 'SESSION_EXPIRED', undefined, { actionHint: SDK_MESSAGES.SESSION_EXPIRED_ACTION_HINT });
     }
@@ -6986,7 +7085,12 @@
       return createFailedResponse('SDK', 'Masterpass session is invalid. MasterpassToken is missing. Please create a new session.', 'INVALID_SESSION');
     }
     if (!isMasterpassInitialized()) {
-      await ensureMasterpassInitialized();
+      try {
+        await ensureMasterpassInitialized();
+      }
+      catch (ensureError) {
+        return createFailedResponse('SDK', 'Masterpass SDK is not loaded. Please ensure Masterpass SDK is properly initialized.', 'SDK_NOT_LOADED');
+      }
     }
     if (typeof window !== 'undefined') {
       const Masterpass = window.Masterpass;
@@ -6997,12 +7101,15 @@
     // Session ID SDK tarafından yönetilir: dahili (verify'dan gelen, gerektiğinde
     // yenilenen) session önceliklidir; yoksa merchant'ın verdiği değere düşülür.
     let resolvedSessionId = (session.sessionId && session.sessionId.trim() !== '')
-      ? session.sessionId
-      : (params.sessionId ?? '');
+        ? session.sessionId
+        : (params.sessionId ?? '');
     if (!resolvedSessionId || resolvedSessionId.trim() === '') {
       return createFailedResponse('SDK', SDK_MESSAGES.MISSING_SESSION_ID, 'MISSING_SESSION_ID');
     }
     const config = getConfig();
+    // Hata yollarında Paywall'a FAILED mark atabilmek için (ödeme "Created" durumunda kalmasın)
+    let failureMarkPaymentId;
+    let paymentMarked = false;
     try {
       const envConfig = getResolvedEnvironmentConfig();
       if (!envConfig) {
@@ -7031,7 +7138,7 @@
         return createFailedResponse('SDK', getMessage('INVALID_EXPIRY_DATE_FORMAT', params.cardData.expiryDate), 'INVALID_EXPIRY_DATE_FORMAT');
       }
       if (!/^\d{3,4}$/.test(params.cardData.cvv)) {
-        return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cardData.cvv), 'INVALID_CVV_FORMAT');
+        return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
       }
       // Card bin (ilk 8 hane / IIN) ve masked hesapla
       const cardBin = resolveCardBin(cardNumberClean);
@@ -7104,8 +7211,25 @@
       const uniqueCode = paywallMetadata?.UniqueCode;
       const merchantUniqueCode = paywallMetadata?.MerchantUniqueKey;
       const masterpassReturnQueryString = paywallMetadata?.MasterpassReturnQueryString;
+      failureMarkPaymentId = masterpassPaymentId || undefined;
       const masterpassRequestBody = body.Masterpass?.MasterpassRequestBody || null;
       if (!masterpassRequestBody) {
+        // Paywall init başarılı ama MasterpassRequestBody boş — Masterpass akışı hiç
+        // başlamadı. Paywall tarafında kayıt "Created" durumunda kalmasın diye
+        // FAILED olarak işaretliyoruz (initPayment ile aynı).
+        paymentMarked = true;
+        try {
+          await markAsStarted({
+            ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+            paymentType: exports.PaymentType.Unknown,
+            paymentStatus: 'FAILED',
+            masterpassOrderId: '-',
+            responseCode: 'MISSING_MASTERPASS_REQUEST_BODY',
+          });
+        }
+        catch (markError) {
+          // markAsStarted hatası ödeme akışını durdurmaz
+        }
         return createFailedResponse('PAYWALL', SDK_MESSAGES.MISSING_MASTERPASS_REQUEST_BODY, 'MISSING_MASTERPASS_REQUEST_BODY');
       }
       const paymentInitData = {
@@ -7132,18 +7256,18 @@
       // MasterpassRequestBody'i registerAndPurchase için hazırla
       // registerAndPurchase için özel alanlar ekle
       const registerAndPurchasePayload = buildMasterpassPayload(masterpassRequestBody, {
-          cardNumber: params.cardData.cardNumber,
-          cardHolderName: params.cardData.cardHolderName,
-          expiryDate: params.cardData.expiryDate,
-          cvv: params.cardData.cvv,
-          cardAlias: params.cardData.cardAlias, // registerAndPurchase için zorunlu
-        }, exports.PaymentSource.MANUAL_CARD, // registerAndPurchase için MANUAL_CARD kullan
-        {
-          ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
-          ...(paymentInitData.masterpassPaymentId !== undefined && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
-          ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
-          ...(paymentInitData.uniqueCode !== undefined && { uniqueCode: paymentInitData.uniqueCode }),
-        });
+            cardNumber: params.cardData.cardNumber,
+            cardHolderName: params.cardData.cardHolderName,
+            expiryDate: params.cardData.expiryDate,
+            cvv: params.cardData.cvv,
+            cardAlias: params.cardData.cardAlias, // registerAndPurchase için zorunlu
+          }, exports.PaymentSource.MANUAL_CARD, // registerAndPurchase için MANUAL_CARD kullan
+          {
+            ...(paymentInitData.paymentId !== undefined && { paymentId: paymentInitData.paymentId }),
+            ...(paymentInitData.masterpassPaymentId !== undefined && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+            ...(paymentInitData.activityId !== undefined && { activityId: paymentInitData.activityId }),
+            ...(paymentInitData.uniqueCode !== undefined && { uniqueCode: paymentInitData.uniqueCode }),
+          });
       registerAndPurchasePayload.cardAlias = params.cardData.cardAlias;
       registerAndPurchasePayload.accountKey = params.accountKey;
       registerAndPurchasePayload.accountKeyType = params.accountKeyType;
@@ -7165,7 +7289,33 @@
       catch (error) {
         const errorStatusCode = error?.statusCode || 0;
         const errorResponse = error?.response || error;
-        return createFailedResponse('MASTERPASS', errorResponse?.exception?.message || errorResponse?.message || 'Masterpass registerAndPurchase failed', errorResponse?.exception?.code || String(errorStatusCode) || 'MASTERPASS_ERROR', {
+        const failureErrorCode = errorResponse?.exception?.code || String(errorStatusCode) || 'MASTERPASS_ERROR';
+        // Paywall backend'e FAILED bildirimi gönder (initPayment ile aynı)
+        // PaymentType: Masterpass çağrısı tamamlanmadığı için tip kesin bilinemez → Unknown (4)
+        paymentMarked = true;
+        try {
+          const failureMasterpassOrderId = errorResponse?.exception?.retrievalReferenceNumber
+              || errorResponse?.result?.retrievalReferenceNumber
+              || errorResponse?.retrievalReferenceNumber
+              || '-';
+          await markAsStarted({
+            ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+            paymentType: exports.PaymentType.Unknown,
+            paymentStatus: 'FAILED',
+            masterpassOrderId: failureMasterpassOrderId,
+            ...(errorResponse && typeof errorResponse === 'object' && {
+              masterpassResponse: {
+                statusCode: errorStatusCode || errorResponse?.statusCode || 0,
+                response: errorResponse,
+              },
+            }),
+            responseCode: failureErrorCode,
+          });
+        }
+        catch (markError) {
+          // markAsStarted hatası ödeme akışını durdurmaz
+        }
+        return createFailedResponse('MASTERPASS', errorResponse?.exception?.message || errorResponse?.message || 'Masterpass registerAndPurchase failed', failureErrorCode, {
           httpStatus: errorStatusCode,
           responseCode: errorResponse?.exception?.code || String(errorStatusCode),
           raw: errorResponse,
@@ -7181,13 +7331,13 @@
       const mpResult = mpResponse?.result || mpResponse;
       const statusCode = masterpassResponse.statusCode || mpResponse?.statusCode || 0;
       const responseCode = mpResponse?.result?.responseCode
-        || mpResult?.responseCode
-        || mpResponse?.responseCode
-        || 'UNKNOWN';
+          || mpResult?.responseCode
+          || mpResponse?.responseCode
+          || 'UNKNOWN';
       const masterpassOrderId = mpResult?.retrievalReferenceNumber
-        || mpResult?.orderId
-        || mpResponse?.orderId
-        || mpResponse?.retrievalReferenceNumber;
+          || mpResult?.orderId
+          || mpResponse?.orderId
+          || mpResponse?.retrievalReferenceNumber;
       // Status mapping
       let paymentStatus = 'FAILED';
       let actionType;
@@ -7237,17 +7387,19 @@
         }
         description = SDK_MESSAGES.THREE_D_REQUIRED;
         // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+        // url3dSuccess / url3dFail'e de MasterpassReturnQueryString eklenir (initPayment ile aynı)
         const session = getMasterpassSession();
         window.FlowDirectable = {
           uri: mpResponse?.contentLocation || '',
           token: mpResult?.token || session?.masterpassToken,
           url3d: threeDAddress,
-          url3dSuccess: mpResult?.url3dSuccess,
-          url3dFail: mpResult?.url3dFail,
+          url3dSuccess: appendMasterpassReturnQueryString(mpResult?.url3dSuccess, paymentInitData.masterpassReturnQueryString),
+          url3dFail: appendMasterpassReturnQueryString(mpResult?.url3dFail, paymentInitData.masterpassReturnQueryString),
         };
       }
       else {
         paymentStatus = 'FAILED';
+        paymentType = exports.PaymentType.Unknown;
         const mappedError = mapMasterpassError(mpResponse);
         if (mappedError) {
           description = mappedError.message;
@@ -7270,15 +7422,19 @@
         },
       });
       if (paymentStatus === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP')) {
-        setPendingPaymentOtp({
-          ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
+        setPendingPaymentOtp(createPendingPaymentOtp(paymentInitData, {
           ...(masterpassOrderId && { masterpassOrderId }),
-        });
+          ...(paymentInitData.masterpassReturnQueryString && { masterpassReturnQueryString: paymentInitData.masterpassReturnQueryString }),
+          sessionId: resolvedSessionId,
+          successUrl: params.paymentDetail.successUrl,
+          failUrl: params.paymentDetail.failUrl,
+        }));
       }
       else {
         setPendingPaymentOtp(null);
       }
       // markAsStarted çağrısı
+      paymentMarked = true;
       try {
         await markAsStarted({
           ...(paymentInitData.masterpassPaymentId && { masterpassPaymentId: paymentInitData.masterpassPaymentId }),
@@ -7328,6 +7484,22 @@
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Paywall backend'e FAILED bildirimi gönder (initPayment ile aynı)
+      // Sonuç mark'ı zaten atıldıysa tekrar atılmaz (FAILED ile ezilmesin)
+      if (!paymentMarked) {
+        try {
+          await markAsStarted({
+            ...(failureMarkPaymentId && { masterpassPaymentId: failureMarkPaymentId }),
+            paymentType: exports.PaymentType.Unknown,
+            paymentStatus: 'FAILED',
+            masterpassOrderId: '-',
+            responseCode: 'SDK_ERROR',
+          });
+        }
+        catch (markError) {
+          // markAsStarted hatası ödeme akışını durdurmaz
+        }
+      }
       return createFailedResponse('MASTERPASS', getMessage('PAYMENT_INIT_FAILED_WITH_ERROR', errorMessage), 'SDK_ERROR', {
         responseCode: 'SDK_ERROR',
         raw: error,
@@ -7401,7 +7573,7 @@
     try {
       // Request reference number generate et (eğer verilmemişse)
       const requestReferenceNumber = params.requestReferenceNumber ||
-        `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       // Expiry date'i YYMM formatına çevir (backend YYMM bekliyor, MMYY değil)
       // Legacy support: expiryDate varsa kullan (MMYY formatında geliyor), yoksa expireMonth + expireYear'dan oluştur
       let expiryDate;
@@ -7561,7 +7733,7 @@
       const initResponse = getInitResponse();
       if (!initResponse || !initResponse.paymentId) {
         throw new Error('Payment must be initialized via PaywallJsSdk.payment.initMaskedPayment() before StartPayment. ' +
-          'Please call payment.initMaskedPayment() first.');
+            'Please call payment.initMaskedPayment() first.');
       }
       // Guard: Session state var mı?
       const session = getMasterpassSession();
@@ -7630,8 +7802,8 @@
         const secure3DModel = params.threeDSecure === true ? '3D' : 'NON_SECURE';
         // FlowType belirleme
         const flowType = params.threeDSecure
-          ? exports.PaymentFlowType.THREE_D_SECURE
-          : exports.PaymentFlowType.NON_SECURE;
+            ? exports.PaymentFlowType.THREE_D_SECURE
+            : exports.PaymentFlowType.NON_SECURE;
         // Masterpass SDK parametrelerini hazırla
         // NOT: Kart datası (cardNumber, cvv, expiry) sadece Masterpass'e gidecek, Paywall'a gitmeyecek
         const masterpassParams = {
@@ -7659,7 +7831,7 @@
         }
         else if (params.cardNumber && params.expireMonth && params.expireYear && params.cvv) {
           const expiryMMYY = (params.expireMonth ?? '').toString().padStart(2, '0') +
-            ((params.expireYear ?? '').length === 2 ? (params.expireYear ?? '') : (params.expireYear ?? '').slice(-2));
+              ((params.expireYear ?? '').length === 2 ? (params.expireYear ?? '') : (params.expireYear ?? '').slice(-2));
           const plain = getPlainCardForMasterpass({
             cardNumber: params.cardNumber,
             expiryDate: expiryMMYY,
@@ -7709,8 +7881,8 @@
         // Response'u unified formatına çevir
         // FlowType mapping: statusCode === 200 → NON_SECURE, statusCode === 202 → THREE_D_SECURE
         const finalFlowType = masterpassResponse.statusCode === 202
-          ? exports.PaymentFlowType.THREE_D_SECURE
-          : exports.PaymentFlowType.NON_SECURE;
+            ? exports.PaymentFlowType.THREE_D_SECURE
+            : exports.PaymentFlowType.NON_SECURE;
         // Masterpass response'unu parse et
         const mpResponse = masterpassResponse.response;
         const result = mpResponse?.result || mpResponse;
@@ -7803,8 +7975,8 @@
         const mappedError = mapMasterpassError(rawResponse);
         // FlowType belirleme
         const flowType = params.threeDSecure
-          ? exports.PaymentFlowType.THREE_D_SECURE
-          : exports.PaymentFlowType.NON_SECURE;
+            ? exports.PaymentFlowType.THREE_D_SECURE
+            : exports.PaymentFlowType.NON_SECURE;
         const errorMessageText = error instanceof Error ? error.message : String(error);
         // Init'ten gelen referansları al
         const initResponse = getInitResponse();
@@ -7813,11 +7985,11 @@
         const uniqueCode = params.uniqueCode || initResponse?.uniqueCode;
         const merchantUniqueCode = params.merchantUniqueCode || initResponse?.merchantUniqueCode;
         const failedErrorCode = mappedError
-          ? String(mappedError.code)
-          : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
+            ? String(mappedError.code)
+            : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
         const failedErrorMessage = mappedError
-          ? mappedError.message
-          : (rawResponse?.exception?.message || errorMessageText);
+            ? mappedError.message
+            : (rawResponse?.exception?.message || errorMessageText);
         httpPost(`${config.baseUrl}/checkout/masterpass/payment/failed`, {
           paymentId,
           status: 'FAILED',
@@ -8009,8 +8181,8 @@
       }
       // 7. Masterpass SDK API kontrolü
       if (typeof Masterpass.setEndpoint !== 'function' ||
-        typeof Masterpass.setToken !== 'function' ||
-        typeof Masterpass.setMerchantId !== 'function') {
+          typeof Masterpass.setToken !== 'function' ||
+          typeof Masterpass.setMerchantId !== 'function') {
         return {
           success: false,
           status: 'FAILED',
@@ -8188,7 +8360,7 @@
         return createFailedResponse('SDK', SDK_MESSAGES.MISSING_CVV, 'MISSING_CVV');
       }
       if (!/^\d{3,4}$/.test(params.cvv)) {
-        return createFailedResponse('SDK', getMessage('INVALID_CVV_FORMAT', params.cvv), 'INVALID_CVV_FORMAT');
+        return createFailedResponse('SDK', SDK_MESSAGES.INVALID_CVV_FORMAT, 'INVALID_CVV_FORMAT');
       }
       if (!params.requestReferenceNumber || params.requestReferenceNumber.trim() === '') {
         return createFailedResponse('SDK', SDK_MESSAGES.MISSING_REQUEST_REFERENCE_NUMBER, 'MISSING_REQUEST_REFERENCE_NUMBER');
@@ -8307,8 +8479,8 @@
         }
       }
       const responseCode = mpResult?.responseCode
-        || mpResponse?.responseCode
-        || (statusCode ? String(statusCode) : '');
+          || mpResponse?.responseCode
+          || (statusCode ? String(statusCode) : '');
       const statusMapping = mapResponseCodeToSdkStatus(responseCode);
       // Eğer ACTION_REQUIRED ise, mapMasterpassError'ı atla (bunlar hata değil)
       // Sadece gerçek hata durumlarında mapMasterpassError kullan
@@ -8360,6 +8532,9 @@
         const otpToken = mpResult?.token || mpResponse?.token;
         if (otpToken)
           setOtpFlowToken(otpToken);
+        // Yeni OTP akışı kart ekleme için: bekleyen ödeme OTP'si artık geçerli değil,
+        // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+        setPendingPaymentOtp(null);
         const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
         const description = SDK_MESSAGES.BANK_OTP_REQUIRED;
         const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
@@ -8383,6 +8558,9 @@
         const otpToken = mpResult?.token || mpResponse?.token;
         if (otpToken)
           setOtpFlowToken(otpToken);
+        // Yeni OTP akışı kart ekleme için: bekleyen ödeme OTP'si artık geçerli değil,
+        // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+        setPendingPaymentOtp(null);
         const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber || mpResponse?.retrievalReferenceNumber;
         const description = SDK_MESSAGES.MASTERPASS_OTP_REQUIRED;
         const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
@@ -8411,6 +8589,7 @@
           ...(sessionId && { sessionId }),
           token: mpResult?.token,
           ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+          ...(url3d && { redirectUrl: url3d }),
         }, {
           httpStatus: statusCode || 202,
           responseCode: responseCode,
@@ -8431,8 +8610,8 @@
         const mappedError = mapMasterpassError(mpResponse);
         const rawMessage = mpResult?.description || mpResponse?.description || '';
         const errorMessage = mappedError
-          ? mappedError.message
-          : (rawMessage || SDK_MESSAGES.ADD_CARD_FAILED);
+            ? mappedError.message
+            : (rawMessage || SDK_MESSAGES.ADD_CARD_FAILED);
         const sessionId = getSessionId() || getMasterpassSession()?.sessionId;
         const failedResponse = createFailedResponse('MASTERPASS', errorMessage, mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'), {
           httpStatus: statusCode || 400,
@@ -8586,8 +8765,8 @@
       const mpResponse = response || {};
       const mpResult = mpResponse?.result || mpResponse;
       const responseCode = mpResult?.responseCode
-        || mpResponse?.responseCode
-        || (statusCode ? String(statusCode) : '');
+          || mpResponse?.responseCode
+          || (statusCode ? String(statusCode) : '');
       // Exception handling
       if ((statusCode !== 200 && statusCode !== 202) || mpResponse?.exception) {
         const exception = mpResponse?.exception;
@@ -8596,11 +8775,11 @@
         if (exception && (exceptionMessage || exceptionCode)) {
           const mappedError = mapMasterpassError(mpResponse);
           const finalMessage = mappedError
-            ? mappedError.message
-            : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
+              ? mappedError.message
+              : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
           const finalCode = mappedError
-            ? String(mappedError.code)
-            : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
+              ? String(mappedError.code)
+              : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
           return createFailedResponse('MASTERPASS', finalMessage, finalCode, {
             httpStatus: statusCode || 400,
             responseCode: finalCode,
@@ -8634,6 +8813,9 @@
         const otpToken = mpResult?.token || mpResponse?.token;
         if (otpToken)
           setOtpFlowToken(otpToken);
+        // Yeni OTP akışı merchant link için: bekleyen ödeme OTP'si artık geçerli değil,
+        // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+        setPendingPaymentOtp(null);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'MASTERPASS_OTP', SDK_MESSAGES.MASTERPASS_OTP_REQUIRED, {
           ...(otpToken && { token: otpToken }),
         }, {
@@ -8653,6 +8835,9 @@
         const otpToken = mpResult?.token || mpResponse?.token;
         if (otpToken)
           setOtpFlowToken(otpToken);
+        // Yeni OTP akışı merchant link için: bekleyen ödeme OTP'si artık geçerli değil,
+        // sonraki verifyOtp ödemeyi yanlışlıkla mark'lamasın
+        setPendingPaymentOtp(null);
         const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', 'BANK_OTP', SDK_MESSAGES.BANK_OTP_REQUIRED, {
           ...(otpToken && { token: otpToken }),
         }, {
@@ -8672,8 +8857,8 @@
         const mappedError = mapMasterpassError(mpResponse);
         const rawMessage = mpResult?.description || mpResponse?.description || '';
         const errorMessage = mappedError
-          ? mappedError.message
-          : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
+            ? mappedError.message
+            : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
         const failedResponse = createFailedResponse('MASTERPASS', errorMessage, mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'), {
           httpStatus: statusCode || 400,
           responseCode: mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'),
@@ -8695,11 +8880,11 @@
       }
       const mappedError = mapMasterpassError(masterpassResponse);
       const errorMessage = mappedError
-        ? mappedError.message
-        : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
+          ? mappedError.message
+          : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
       const errorCode = mappedError
-        ? String(mappedError.code)
-        : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
+          ? String(mappedError.code)
+          : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
       const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
       const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
         httpStatus: httpStatus,
@@ -8782,12 +8967,12 @@
       const mpResponse = response || {};
       const mpResult = mpResponse?.result || mpResponse;
       const responseCode = mpResult?.responseCode
-        || mpResponse?.responseCode
-        || (statusCode ? String(statusCode) : '');
+          || mpResponse?.responseCode
+          || (statusCode ? String(statusCode) : '');
       // OTP_IS_NOT_VALID kontrolü (responseCode veya exception içinde olabilir)
       if (mpResponse?.exception?.code === 'OTP_IS_NOT_VALID' ||
-        responseCode === 'OTP_IS_NOT_VALID' ||
-        mpResult?.responseCode === 'OTP_IS_NOT_VALID') {
+          responseCode === 'OTP_IS_NOT_VALID' ||
+          mpResult?.responseCode === 'OTP_IS_NOT_VALID') {
         return createFailedResponse('MASTERPASS', 'OTP code is not valid', 'OTP_IS_NOT_VALID', {
           httpStatus: statusCode || 400,
           responseCode: 'OTP_IS_NOT_VALID',
@@ -8802,11 +8987,11 @@
         if (exception && (exceptionMessage || exceptionCode)) {
           const mappedError = mapMasterpassError(mpResponse);
           const finalMessage = mappedError
-            ? mappedError.message
-            : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
+              ? mappedError.message
+              : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
           const finalCode = mappedError
-            ? String(mappedError.code)
-            : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
+              ? String(mappedError.code)
+              : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
           return createFailedResponse('MASTERPASS', finalMessage, finalCode, {
             httpStatus: statusCode || 400,
             responseCode: finalCode,
@@ -8842,8 +9027,8 @@
         const pendingPaymentOtp = getPendingPaymentOtp();
         if (pendingPaymentOtp) {
           const verifiedOrderId = mpResult?.retrievalReferenceNumber
-            || mpResponse?.retrievalReferenceNumber
-            || pendingPaymentOtp.masterpassOrderId;
+              || mpResponse?.retrievalReferenceNumber
+              || pendingPaymentOtp.masterpassOrderId;
           try {
             await markPaymentAfterOtpVerify({
               ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
@@ -8901,13 +9086,80 @@
         });
         return actionRequiredResponse;
       }
+      else if (responseCode === '5010') {
+        // ACTION_REQUIRED: OTP sonrası 3D Secure doğrulama gerekiyor
+        // payment.init / registerAndPurchase ile aynı: url3d / url3dSuccess / url3dFail'e MasterpassReturnQueryString eklenir
+        setOtpFlowToken(null);
+        const threeDToken = mpResult?.token || mpResponse?.token;
+        const pendingPaymentOtp = getPendingPaymentOtp();
+        const masterpassReturnQueryString = pendingPaymentOtp?.masterpassReturnQueryString;
+        const baseUrl3d = mpResult?.url3d || mpResponse?.url3d || mpResult?.htmlContent;
+        const threeDAddress = appendMasterpassReturnQueryString(baseUrl3d, masterpassReturnQueryString);
+        const finalUrl3dSuccess = appendMasterpassReturnQueryString(mpResult?.url3dSuccess || mpResponse?.url3dSuccess, masterpassReturnQueryString);
+        const finalUrl3dFail = appendMasterpassReturnQueryString(mpResult?.url3dFail || mpResponse?.url3dFail, masterpassReturnQueryString);
+        const retrievalReferenceNumber = mpResult?.retrievalReferenceNumber
+            || mpResponse?.retrievalReferenceNumber
+            || pendingPaymentOtp?.masterpassOrderId;
+        // FlowDirectable objesini set et (Masterpass SDK için - 3D callback için)
+        window.FlowDirectable = {
+          uri: mpResponse?.contentLocation || '',
+          token: threeDToken || getMasterpassSession()?.masterpassToken,
+          url3d: threeDAddress,
+          url3dSuccess: finalUrl3dSuccess,
+          url3dFail: finalUrl3dFail,
+        };
+        const actionRequiredResponse = createActionRequiredResponse('MASTERPASS', '3D', SDK_MESSAGES.THREE_D_REQUIRED, {
+          isVerified: false,
+          ...(threeDToken && { token: threeDToken }),
+          ...(mpResult?.cardUniqueNumber && { cardUniqueNumber: mpResult.cardUniqueNumber }),
+          ...(retrievalReferenceNumber && { retrievalReferenceNumber }),
+          ...(threeDAddress && { redirectUrl: threeDAddress }),
+          ...(finalUrl3dSuccess && { url3dSuccess: finalUrl3dSuccess }),
+          ...(finalUrl3dFail && { url3dFail: finalUrl3dFail }),
+          ...(pendingPaymentOtp?.sessionId && { sessionId: pendingPaymentOtp.sessionId }),
+          ...(pendingPaymentOtp?.successUrl && { successUrl: pendingPaymentOtp.successUrl }),
+          ...(pendingPaymentOtp?.failUrl && { failUrl: pendingPaymentOtp.failUrl }),
+          ...(pendingPaymentOtp?.paymentId !== undefined && { paymentId: pendingPaymentOtp.paymentId }),
+          ...(pendingPaymentOtp?.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+          ...(pendingPaymentOtp?.activityId !== undefined && { activityId: pendingPaymentOtp.activityId }),
+          ...(pendingPaymentOtp?.uniqueCode && { uniqueCode: pendingPaymentOtp.uniqueCode }),
+          ...(pendingPaymentOtp?.merchantUniqueCode && { merchantUniqueCode: pendingPaymentOtp.merchantUniqueCode }),
+        }, {
+          httpStatus: statusCode || 202,
+          responseCode: responseCode,
+          ...(config.logLevel === 'debug' && { raw: mpResponse }),
+        });
+        logDebugFlow(config, {
+          functionName: 'verifyOtp',
+          stepName: 'normalized-sdk-response',
+          normalizedSdkResponse: actionRequiredResponse,
+        });
+        if (pendingPaymentOtp) {
+          try {
+            await markPaymentAfterOtpVerifyThreeD({
+              ...(pendingPaymentOtp.masterpassPaymentId && { masterpassPaymentId: pendingPaymentOtp.masterpassPaymentId }),
+              ...(retrievalReferenceNumber && { masterpassOrderId: retrievalReferenceNumber }),
+              ...(threeDAddress && { threeDAddress }),
+              masterpassResponse: {
+                statusCode: statusCode || 202,
+                response: mpResponse,
+              },
+            });
+          }
+          catch (markError) {
+            // mark hatası OTP verify sonucunu durdurmaz
+          }
+          setPendingPaymentOtp(null);
+        }
+        return actionRequiredResponse;
+      }
       else {
         // FAILED: Diğer durumlar
         const mappedError = mapMasterpassError(mpResponse);
         const rawMessage = mpResult?.description || mpResponse?.description || '';
         const errorMessage = mappedError
-          ? mappedError.message
-          : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
+            ? mappedError.message
+            : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
         const failedResponse = createFailedResponse('MASTERPASS', errorMessage, mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'), {
           httpStatus: statusCode || 400,
           responseCode: mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'),
@@ -8929,11 +9181,11 @@
       }
       const mappedError = mapMasterpassError(masterpassResponse);
       const errorMessage = mappedError
-        ? mappedError.message
-        : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
+          ? mappedError.message
+          : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
       const errorCode = mappedError
-        ? String(mappedError.code)
-        : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
+          ? String(mappedError.code)
+          : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
       const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
       const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
         httpStatus: httpStatus,
@@ -9012,12 +9264,12 @@
       const mpResponse = response || {};
       const mpResult = mpResponse?.result || mpResponse;
       const responseCode = mpResult?.responseCode
-        || mpResponse?.responseCode
-        || (statusCode ? String(statusCode) : '');
+          || mpResponse?.responseCode
+          || (statusCode ? String(statusCode) : '');
       // TOKEN_ALREADY_USED kontrolü
       if (mpResponse?.exception?.code === 'TOKEN_ALREADY_USED' ||
-        responseCode === 'TOKEN_ALREADY_USED' ||
-        mpResult?.responseCode === 'TOKEN_ALREADY_USED') {
+          responseCode === 'TOKEN_ALREADY_USED' ||
+          mpResult?.responseCode === 'TOKEN_ALREADY_USED') {
         return createFailedResponse('MASTERPASS', 'Token already used', 'TOKEN_ALREADY_USED', {
           httpStatus: statusCode || 400,
           responseCode: 'TOKEN_ALREADY_USED',
@@ -9032,11 +9284,11 @@
         if (exception && (exceptionMessage || exceptionCode)) {
           const mappedError = mapMasterpassError(mpResponse);
           const finalMessage = mappedError
-            ? mappedError.message
-            : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
+              ? mappedError.message
+              : (exceptionMessage || SDK_MESSAGES.OPERATION_FAILED);
           const finalCode = mappedError
-            ? String(mappedError.code)
-            : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
+              ? String(mappedError.code)
+              : (exceptionCode || (statusCode ? String(statusCode) : 'MASTERPASS_ERROR'));
           return createFailedResponse('MASTERPASS', finalMessage, finalCode, {
             httpStatus: statusCode || 400,
             responseCode: finalCode,
@@ -9086,8 +9338,8 @@
         const mappedError = mapMasterpassError(mpResponse);
         const rawMessage = mpResult?.description || mpResponse?.description || '';
         const errorMessage = mappedError
-          ? mappedError.message
-          : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
+            ? mappedError.message
+            : (rawMessage || SDK_MESSAGES.OPERATION_FAILED);
         const failedResponse = createFailedResponse('MASTERPASS', errorMessage, mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'), {
           httpStatus: statusCode || 400,
           responseCode: mappedError ? String(mappedError.code) : (responseCode || 'UNKNOWN_ERROR'),
@@ -9109,11 +9361,11 @@
       }
       const mappedError = mapMasterpassError(masterpassResponse);
       const errorMessage = mappedError
-        ? mappedError.message
-        : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
+          ? mappedError.message
+          : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
       const errorCode = mappedError
-        ? String(mappedError.code)
-        : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
+          ? String(mappedError.code)
+          : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
       const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
       const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
         httpStatus: httpStatus,
@@ -9268,11 +9520,11 @@
         const exceptionCode = exception?.code || 'UNKNOWN_ERROR';
         const mappedError = mapMasterpassError(mpResponse);
         const finalMessage = mappedError
-          ? mappedError.message
-          : exceptionMessage;
+            ? mappedError.message
+            : exceptionMessage;
         const finalCode = mappedError
-          ? String(mappedError.code)
-          : exceptionCode;
+            ? String(mappedError.code)
+            : exceptionCode;
         const failedResponse = createFailedResponse('MASTERPASS', finalMessage, finalCode, {
           httpStatus: statusCode || 400,
           responseCode: finalCode,
@@ -9294,11 +9546,11 @@
       }
       const mappedError = mapMasterpassError(masterpassResponse);
       const errorMessage = mappedError
-        ? mappedError.message
-        : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
+          ? mappedError.message
+          : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
       const errorCode = mappedError
-        ? String(mappedError.code)
-        : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
+          ? String(mappedError.code)
+          : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
       const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
       const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
         httpStatus: httpStatus,
@@ -9383,8 +9635,8 @@
       const mpResponse = response || {};
       const mpResult = mpResponse?.result || mpResponse;
       const responseCode = mpResult?.responseCode
-        || mpResponse?.responseCode
-        || (statusCode ? String(statusCode) : '');
+          || mpResponse?.responseCode
+          || (statusCode ? String(statusCode) : '');
       // Response normalization - statusCode bazlı
       if (statusCode === 200) {
         // SUCCESS: Card deleted
@@ -9409,11 +9661,11 @@
         const exceptionCode = exception?.code || 'DELETE_FAILED';
         const mappedError = mapMasterpassError(mpResponse);
         const finalMessage = mappedError
-          ? mappedError.message
-          : exceptionMessage;
+            ? mappedError.message
+            : exceptionMessage;
         const finalCode = mappedError
-          ? String(mappedError.code)
-          : exceptionCode;
+            ? String(mappedError.code)
+            : exceptionCode;
         const failedResponse = createFailedResponse('MASTERPASS', finalMessage, finalCode, {
           httpStatus: statusCode || 400,
           responseCode: finalCode,
@@ -9435,11 +9687,11 @@
       }
       const mappedError = mapMasterpassError(masterpassResponse);
       const errorMessage = mappedError
-        ? mappedError.message
-        : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
+          ? mappedError.message
+          : (masterpassResponse?.message || SDK_MESSAGES.OPERATION_FAILED);
       const errorCode = mappedError
-        ? String(mappedError.code)
-        : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
+          ? String(mappedError.code)
+          : (masterpassResponse?.statusCode ? String(masterpassResponse.statusCode) : 'SDK_ERROR');
       const httpStatus = error?.statusCode || masterpassResponse?.statusCode || 400;
       const errorResponse = createFailedResponse('MASTERPASS', errorMessage, errorCode, {
         httpStatus: httpStatus,
@@ -9657,8 +9909,8 @@
     assertSdkInitialized();
     if (!params.tempToken || params.tempToken.trim() === '') {
       throw new Error('TempToken is required. ' +
-        'Token must be obtained from merchant backend and provided as parameter. ' +
-        'SDK does not generate tokens.');
+          'Token must be obtained from merchant backend and provided as parameter. ' +
+          'SDK does not generate tokens.');
     }
     const config = getConfig();
     try {
@@ -9746,11 +9998,11 @@
         const rawResponse = errorResponse?.response || errorResponse;
         const mappedError = mapMasterpassError(rawResponse);
         const errorCode = mappedError
-          ? String(mappedError.code)
-          : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
+            ? String(mappedError.code)
+            : (rawResponse?.exception?.code || rawResponse?.statusCode || 'MASTERPASS_ERROR');
         const errorMessage = mappedError
-          ? mappedError.message
-          : (rawResponse?.exception?.message || (error instanceof Error ? error.message : String(error)));
+            ? mappedError.message
+            : (rawResponse?.exception?.message || (error instanceof Error ? error.message : String(error)));
         await notifyFailure(String(errorCode), String(errorMessage));
         return {
           status: 'FAILED',
@@ -9942,8 +10194,8 @@
     }
     // Backend flowType'ı PaymentFlowType'a map et
     const flowType = backendData.flowType === 'THREE_D_SECURE'
-      ? exports.PaymentFlowTypeV2.THREE_D_SECURE
-      : exports.PaymentFlowTypeV2.NON_SECURE;
+        ? exports.PaymentFlowTypeV2.THREE_D_SECURE
+        : exports.PaymentFlowTypeV2.NON_SECURE;
     // Unified result oluştur
     const result = {
       status: (status === exports.PaymentStatus.SUCCESS ? 'SUCCESS' : status === exports.PaymentStatus.FAILED ? 'FAILED' : 'STARTED'),
@@ -10045,7 +10297,7 @@
       if (result) {
         // Başarılı response alındı
         const isFinalState = result.status === 'SUCCESS' ||
-          result.status === 'FAILED';
+            result.status === 'FAILED';
         if (isFinalState) {
           // Final state (SUCCESS veya FAILED), polling'i durdur
           return result;
@@ -10195,13 +10447,36 @@
    * }
    */
 
-    // Paywall ödeme orkestrasyon sistemi için JavaScript SDK
-    // Masterpass SDK bundle içine gömülüdür
-  const InternalService = {
-      CardTokenization: (async () => {
-        throw new Error('InternalService.CardTokenization is not implemented yet.');
-      }),
+  // Paywall ödeme orkestrasyon sistemi için JavaScript SDK
+  // Masterpass SDK bundle içine gömülüdür
+  /**
+   * Public wrapper guard'ları için FAILED response.
+   *
+   * - `errorCode` internal response'larla aynı şekilde üst seviyede döner.
+   * - `providerMeta` geriye uyumluluk için üst seviyede kalır, ayrıca internal
+   *   response'larla aynı yerde (`data.providerMeta`) de döner.
+   */
+  function createGuardFailedResponse(message, errorCode) {
+    const providerMeta = {
+      provider: 'SDK',
+      httpStatus: 0,
+      responseCode: errorCode,
     };
+    return {
+      success: false,
+      status: 'FAILED',
+      source: 'SDK',
+      message,
+      errorCode,
+      providerMeta,
+      data: { providerMeta },
+    };
+  }
+  const InternalService = {
+    CardTokenization: (async () => {
+      throw new Error('InternalService.CardTokenization is not implemented yet.');
+    }),
+  };
   // Masked payment init işlemi (DEPRECATED)
   async function initMaskedPaymentInternal(initParams, config) {
     try {
@@ -10680,8 +10955,8 @@
        * ```
        */
       initWithRegisteredCard: async (params) => {
-        // SDK lifecycle guard - EN BAŞTA kontrol
-        assertSdkInitialized();
+        // SDK lifecycle guard internal katmanda (payment.init): init edilmemişse
+        // FAILED (SDK_NOT_INITIALIZED) döner ve aşağıda errorCode ile birlikte throw edilir
         // Kayıtlı kart için payment.init'i PaymentSource.REGISTERED_CARD ile çağır
         const response = await initPayment({
           ...(params.sessionId && { sessionId: params.sessionId }),
@@ -10702,8 +10977,15 @@
           products: params.products,
         });
         // SdkResponse'dan data'yı extract et
+        // Geriye uyumluluk: bu fonksiyon hata durumunda throw eder.
+        // Merchant'ın hata kodunu görebilmesi için errorCode ve tam SdkResponse hataya eklenir.
         if (!response.success || !response.data) {
-          throw new Error(response.message || 'Payment initialization failed');
+          const error = new Error(response.message || 'Payment initialization failed');
+          if (response.errorCode) {
+            error.errorCode = response.errorCode;
+          }
+          error.response = response;
+          throw error;
         }
         return response.data;
       },
@@ -10716,8 +10998,7 @@
        */
       initMasterpassPayment: initPayment, // Deprecated, use init() instead
       registerAndPurchase: async (params) => {
-        // SDK lifecycle guard - EN BAŞTA kontrol
-        assertSdkInitialized();
+        // SDK lifecycle guard internal katmanda: init edilmemişse throw yerine FAILED (SDK_NOT_INITIALIZED) döner
         return await registerAndPurchase(params);
       },
       start: startUnifiedPayment,
@@ -10805,6 +11086,7 @@
               status: 'FAILED',
               source: 'SDK',
               message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before provider init.',
+              errorCode: 'SDK_NOT_INITIALIZED',
               data: {
                 masterpassSdkInitialized: false,
               },
@@ -10817,6 +11099,7 @@
               status: 'FAILED',
               source: 'SDK',
               message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before provider init.',
+              errorCode: 'SESSION_NOT_STARTED',
               data: {
                 masterpassSdkInitialized: false,
               },
@@ -10830,19 +11113,21 @@
               status: 'FAILED',
               source: 'SDK',
               message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
+              errorCode: 'MISSING_TOKEN',
               data: {
                 masterpassSdkInitialized: false,
               },
             };
           }
-          const masterpassToken = getMasterpassToken();
-          const masterpassMerchantId = getMasterpassMerchantId();
+          const masterpassToken = peekMasterpassToken();
+          const masterpassMerchantId = peekMasterpassMerchantId();
           if (!masterpassToken || !masterpassMerchantId) {
             return {
               success: false,
               status: 'FAILED',
               source: 'SDK',
               message: 'MasterpassToken or MasterpassMerchantId not found in session state. Make sure session was started successfully.',
+              errorCode: 'MISSING_MERCHANT_ID',
               data: {
                 masterpassSdkInitialized: false,
               },
@@ -10931,60 +11216,20 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before addCard.',
-              providerMeta: {
-                provider: 'SDK',
-                httpStatus: 0,
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before addCard.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before addCard.',
-              providerMeta: {
-                provider: 'SDK',
-                httpStatus: 0,
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before addCard.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                provider: 'SDK',
-                httpStatus: 0,
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before addCard.',
-              providerMeta: {
-                provider: 'SDK',
-                httpStatus: 0,
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before addCard.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.addCard(params);
@@ -11033,52 +11278,20 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before linkMerchant.',
-              providerMeta: {
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before linkMerchant.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before linkMerchant.',
-              providerMeta: {
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before linkMerchant.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before linkMerchant.',
-              providerMeta: {
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before linkMerchant.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.linkMerchant(params);
@@ -11119,52 +11332,20 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before verifyOtp.',
-              providerMeta: {
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before verifyOtp.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before verifyOtp.',
-              providerMeta: {
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before verifyOtp.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before verifyOtp.',
-              providerMeta: {
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before verifyOtp.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.verifyOtp(params);
@@ -11206,52 +11387,20 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before resendOtp.',
-              providerMeta: {
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before resendOtp.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before resendOtp.',
-              providerMeta: {
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before resendOtp.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before resendOtp.',
-              providerMeta: {
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before resendOtp.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.resendOtp();
@@ -11302,64 +11451,24 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before getCardList.',
-              providerMeta: {
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before getCardList.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before getCardList.',
-              providerMeta: {
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before getCardList.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before getCardList.',
-              providerMeta: {
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before getCardList.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Guard: userId zorunlu
           if (!params.userId || params.userId.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'userId is required for Masterpass account access',
-              providerMeta: {
-                responseCode: 'MISSING_USER_ID',
-              },
-            };
+            return createGuardFailedResponse('userId is required for Masterpass account access', 'MISSING_USER_ID');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.getCardList(params);
@@ -11403,52 +11512,20 @@
           // EXTERNAL API: Sadece guard + delegation
           // Guard: SDK core init kontrolü
           if (!isSdkInitialized()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before deleteCard.',
-              providerMeta: {
-                responseCode: 'SDK_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('SDK core must be initialized first. Call PaywallJsSdk.InitPaywallSdk() before deleteCard.', 'SDK_NOT_INITIALIZED');
           }
           // Guard: Session başlatılmış mı?
           if (!hasMasterpassSession()) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before deleteCard.',
-              providerMeta: {
-                responseCode: 'SESSION_NOT_STARTED',
-              },
-            };
+            return createGuardFailedResponse('Session must be started first. Use InitPaywallSdk with includeMasterpassSession: true before deleteCard.', 'SESSION_NOT_STARTED');
           }
           // Guard: Session state'inde MasterpassToken var mı?
-          const masterpassToken = getMasterpassToken();
+          const masterpassToken = peekMasterpassToken();
           if (!masterpassToken || masterpassToken.trim() === '') {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'MasterpassToken not found in session state. Make sure session was started successfully.',
-              providerMeta: {
-                responseCode: 'MISSING_TOKEN',
-              },
-            };
+            return createGuardFailedResponse('MasterpassToken not found in session state. Make sure session was started successfully.', 'MISSING_TOKEN');
           }
           // Guard: Masterpass provider init edilmiş mi?
           if (!isProviderInitialized('masterpass')) {
-            return {
-              success: false,
-              status: 'FAILED',
-              source: 'SDK',
-              message: 'Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before deleteCard.',
-              providerMeta: {
-                responseCode: 'PROVIDER_NOT_INITIALIZED',
-              },
-            };
+            return createGuardFailedResponse('Masterpass provider must be initialized first. Call PaywallJsSdk.providers.masterpass.init() before deleteCard.', 'PROVIDER_NOT_INITIALIZED');
           }
           // Delegation: Internal implementation'ı çağır
           return _internal.providers.masterpass.deleteCard(params);
