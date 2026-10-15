@@ -72,8 +72,6 @@ export class MasterpassSdkTestPageComponent implements OnInit {
   showDeleteConfirm = false;
 
   // OTP handling
-  otpRetryCount = 0;
-  maxOtpRetries = 3;
 
   // OTP Verify State
   otpVerifyLoading = false;
@@ -566,13 +564,33 @@ export class MasterpassSdkTestPageComponent implements OnInit {
       });
 
       const masterpass = PaywallJsSdk.providers.masterpass as any;
+      console.log('[verifyOtp] Request:', { pendingAction: flowState.pendingAction, otpLength: otp.length, token: otpToken.substring(0, 10) + '...' });
       const verifyResponse = await masterpass.verifyOtp(requestPayload);
 
       this.otpVerifyResponse = verifyResponse;
-      const result = verifyResponse?.result || verifyResponse?.data?.result;
-      const responseCode = result?.responseCode;
-      const statusCode = (verifyResponse as any)?.statusCode;
-      const success = verifyResponse.success || verifyResponse.status === 'SUCCESS' || responseCode === '0000';
+      const data = verifyResponse?.data || {};
+      const status = verifyResponse?.status;
+      const actionType = verifyResponse?.actionType || data.actionType;
+      const responseCode = data.providerMeta?.responseCode || verifyResponse?.providerMeta?.responseCode;
+      const errorCode = verifyResponse?.errorCode || responseCode;
+      const statusCode = data.providerMeta?.httpStatus;
+      // SDK ACTION_REQUIRED'da da success:true döner → başarıyı status ile kontrol et
+      const success = status === 'SUCCESS';
+      const needsAnotherOtp = status === 'ACTION_REQUIRED' && (actionType === 'BANK_OTP' || actionType === 'MASTERPASS_OTP');
+      const needs3D = status === 'ACTION_REQUIRED' && actionType === '3D';
+      const verifyRedirectUrl = data.redirectUrl;
+
+      console.log('[verifyOtp] Response:', verifyResponse);
+      console.log('[verifyOtp] Parsed:', {
+        pendingAction: flowState.pendingAction,
+        status,
+        actionType,
+        responseCode,
+        errorCode,
+        statusCode,
+        redirectUrl: verifyRedirectUrl,
+        message: verifyResponse?.message
+      });
 
       this.logService.addStep({
         actionName: 'verifyOtp',
@@ -595,7 +613,6 @@ export class MasterpassSdkTestPageComponent implements OnInit {
 
         this.otpVerifySuccess = true;
         this.otpVerifyError = null;
-        this.otpRetryCount = 0;
 
         this.loadLogs();
         this.updateCurrentState();
@@ -603,35 +620,47 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         // 🔁 OTP SONRASI DAVRANIŞ
         // HİÇBİR şey otomatik tetiklenmez
         // Kullanıcı tekrar AccountAccess'e veya MerchantLink'e basar
-      } else {
-        // OTP verification failed - retry if under max retries
-        this.otpRetryCount++;
-
+      } else if (needsAnotherOtp && data.token) {
+        // Zincir OTP (örn. 5008 → 5001): yeni token ile dialog tekrar açılır
+        this.flowRunner.updateFlowState({ otpToken: data.token });
         this.otpVerifySuccess = false;
-        this.otpVerifyError = result?.description || verifyResponse.message || 'OTP verification failed';
+        this.otpVerifyError = null;
 
-        if (this.otpRetryCount >= this.maxOtpRetries) {
-          this.flowRunner.updateFlowState({
-            awaitingOtp: false,
-            pendingAction: null,
-            otpToken: null
-          });
-          this.otpRetryCount = 0;
-          this.loadLogs();
-          this.updateCurrentState();
-        } else {
-          // Retry - open OTP dialog again
-          this.flowRunner.otpRequired$.next({
-            title: 'OTP Required',
-            message: result?.description || 'OTP verification failed. Please try again.'
-          });
-          this.loadLogs();
-          this.updateCurrentState();
-        }
+        this.flowRunner.otpRequired$.next({
+          title: actionType === 'BANK_OTP' ? 'Bank OTP Required' : 'OTP Required',
+          message: verifyResponse.message || 'Please enter OTP code sent to your phone'
+        });
+        this.loadLogs();
+        this.updateCurrentState();
+      } else if (needs3D) {
+        // OTP sonrası 3D: akış biter, link gösterilir
+        this.flowRunner.updateFlowState({
+          awaitingOtp: false,
+          pendingAction: null,
+          otpToken: null
+        });
+        this.otpVerifySuccess = false;
+        this.otpVerifyError = '3D Secure required. URL: ' + (verifyRedirectUrl || 'N/A');
+
+        this.loadLogs();
+        this.updateCurrentState();
+      } else {
+        // FAILED: dialog tekrar açılmaz, akış kapanır
+        this.otpVerifySuccess = false;
+        this.otpVerifyError = verifyResponse.message || 'OTP verification failed';
+
+        this.flowRunner.updateFlowState({
+          awaitingOtp: false,
+          pendingAction: null,
+          otpToken: null
+        });
+        this.loadLogs();
+        this.updateCurrentState();
       }
     } catch (error: any) {
       this.otpVerifySuccess = false;
       this.otpVerifyError = error.message || 'OTP verification failed';
+      console.error('[verifyOtp] Error:', error);
 
       this.logService.addStep({
         actionName: 'verifyOtp',
@@ -643,7 +672,6 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         pendingAction: null,
         otpToken: null
       });
-      this.otpRetryCount = 0;
 
       this.loadLogs();
       this.updateCurrentState();
@@ -1539,7 +1567,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           productCategory: undefined,
           productDescription: undefined
         })),
-        force3D: this.force3D,
+        force3D: true,
         customer: {
           fullName: this.customerForm.fullName,
           phone: this.customerForm.phone,
@@ -1586,6 +1614,15 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         responseKeys: Object.keys(responseAny),
         resultKeys: result ? Object.keys(result) : null
       });
+
+      // BANK_OTP / MASTERPASS_OTP (5001 / 5008) → open OTP popup
+      if (this.handlePaymentOtpRequired(response, 'registerAndPurchase')) {
+        console.log('[registerAndPurchase] OTP required, opening verify dialog. responseCode:', responseCode);
+        this.manualPaymentLoading = false;
+        this.loadLogs();
+        this.updateCurrentState();
+        return;
+      }
 
       // Check OTP requirement first (5010 for payment)
       // OTP can come from: result.responseCode OR statusCode 202 with responseCode 5010
