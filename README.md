@@ -337,7 +337,7 @@ async function registerAndPurchase() {
     accountKeyType: 'Msisdn',
     merchantUserId: 'USER_123',
     paymentDetail: {
-      amount: 10000, // 100.00 TRY (kuruş cinsinden)
+      amount: 100.00,
       currencyId: 1, // TRY. Para birimi listesi: https://developer.paywall.one/sistem-verileri/para-birimleri
       merchantUniqueCode: 'ORDER-' + Date.now(),
       trackingCode: 'TRACK-' + Date.now(),
@@ -357,7 +357,7 @@ async function registerAndPurchase() {
       {
         productId: 'PROD-001',
         productName: 'Product 1',
-        productAmount: 10000
+        productAmount: 100.00
       }
     ],
     customer: {
