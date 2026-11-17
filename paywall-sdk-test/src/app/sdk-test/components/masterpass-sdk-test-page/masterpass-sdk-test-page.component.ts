@@ -988,7 +988,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
         cardNumber: cardNumber,
         expiryDate: this.manualCardForm.expiryMonth + this.manualCardForm.expiryYear,
         cvv: this.manualCardForm.cvv,
-        accountAliasName: this.manualCardForm.cardAlias.trim()
+        accountAliasName: this.manualCardForm.cardAlias
       };
 
       this.logService.addStep({
@@ -1558,7 +1558,7 @@ export class MasterpassSdkTestPageComponent implements OnInit {
           cardHolderName: this.manualCardForm.cardHolderName,
           expiryDate: this.manualCardForm.expiryMonth + this.manualCardForm.expiryYear,
           cvv: this.manualCardForm.cvv,
-          cardAlias: this.manualCardForm.cardAlias.trim()
+          cardAlias: this.manualCardForm.cardAlias
         },
         products: this.products.map(p => ({
           productId: p.productId || p.productCode,
