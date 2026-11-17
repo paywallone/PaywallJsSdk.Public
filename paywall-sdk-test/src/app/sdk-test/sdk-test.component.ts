@@ -281,7 +281,7 @@ export class SdkTestComponent implements OnInit {
 
       // Add accountAliasName only if provided (optional field)
       if (this.cardAliasInput && this.cardAliasInput.trim()) {
-        addCardParams.accountAliasName = this.cardAliasInput.trim();
+        addCardParams.accountAliasName = this.cardAliasInput;
       }
 
       // Log request payload (masked for security)
